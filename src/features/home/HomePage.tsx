@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react"; // 1. Import useState
 import { useRouter } from "next/navigation";
 
 interface User {
@@ -10,21 +10,47 @@ interface User {
 const HomePage = () => {
   const router = useRouter();
 
+  // 2. Create state to hold user data (starts empty)
+  const [user, setUser] = useState<User>({});
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    // 3. This code runs ONLY in the browser
+    setIsMounted(true);
+
     const token = localStorage.getItem("token");
     if (!token) {
       router.push("/");
+      return;
+    }
+
+    // 4. Safely read user data here
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+      }
     }
   }, [router]);
 
-  const user: User = JSON.parse(localStorage.getItem("user") || "{}");
+  // 5. Calculate username from state (defaults to "user" if loading/empty)
   const username = user.mobileNumber || "user";
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // Check if window exists before removing (safety check)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
     router.push("/");
   };
+
+  // Prevent hydration mismatch (optional but recommended)
+  if (!isMounted) {
+    return null; // or a loading spinner
+  }
 
   return (
     <div className="min-h-screen bg-[#e0d7fc] pb-28">
