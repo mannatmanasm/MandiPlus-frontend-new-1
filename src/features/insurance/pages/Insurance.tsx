@@ -193,44 +193,104 @@ const Insurance = () => {
 
         setMessages(prev => [
             ...prev,
-            { text: 'Submitting details and generating PDF...', sender: 'bot' },
+            { text: 'Submitting details...', sender: 'bot' },
         ]);
 
         try {
             const submitData = new FormData();
-            (Object.keys(formData) as Array<keyof typeof formData>).forEach(key => {
-                submitData.append(key, String(formData[key]));
-            });
 
+            // --- 1. GENERATED FIELDS ---
+            submitData.append('invoiceNumber', `INV-${Date.now()}`);
+            submitData.append('invoiceDate', new Date().toISOString());
+            submitData.append('placeOfSupply', formData.placeOfSupply || 'State');
+
+            // --- 2. ARRAY FIELDS (Use [] suffix) ---
+            const supAddr = formData.supplierAddress || 'Unknown Address';
+            submitData.append('supplierAddress[]', supAddr);
+
+            const buyAddr = formData.buyerAddress || 'Unknown Address';
+            submitData.append('billToAddress[]', buyAddr);
+            submitData.append('shipToAddress[]', buyAddr);
+
+            const prodName = formData.itemName || 'Item';
+            submitData.append('productName[]', prodName);
+
+            // --- 3. STRING FIELDS ---
+            submitData.append('supplierName', formData.supplierName || 'Unknown Supplier');
+            submitData.append('billToName', formData.buyerName || 'Unknown Buyer');
+            submitData.append('shipToName', formData.buyerName || 'Unknown Buyer');
+
+            // --- 4. NUMERIC FIELDS ---
+            const qty = formData.quantity ? Number(formData.quantity) : 0;
+            const rate = formData.rate ? Number(formData.rate) : 0;
+            const amount = qty * rate;
+
+            submitData.append('quantity', String(qty));
+            submitData.append('rate', String(rate));
+            submitData.append('amount', String(amount));
+
+            // --- 5. OPTIONAL FIELDS ---
+            if (formData.vehicleNumber) {
+                submitData.append('vehicleNumber', formData.vehicleNumber);
+                submitData.append('truckNumber', formData.vehicleNumber);
+            }
+            if (formData.hsn) submitData.append('hsnCode', formData.hsn);
+            if (formData.notes) submitData.append('weighmentSlipNote', formData.notes);
+
+            // --- 6. FILE UPLOAD ---
             const finalFile = fileArgument || weightmentSlip;
             if (finalFile) {
-                submitData.append('weightmentSlip', finalFile);
+                submitData.append('weighmentSlips', finalFile);
             }
 
-            // 1. Call API
-            const response = await createInsuranceForm(submitData);
-            const pdfUrl = `http://localhost:5000${response.data.pdfURL}`;
+            // Call API
+            const invoice = await createInsuranceForm(submitData);
 
-            // 2. Show success message briefly
+            // --- FIX: Correctly Read Response ---
+            // The backend might return 'pdfUrl' (camelCase) or 'pdfURL'. check both.
+            const rawPdfUrl = invoice.pdfUrl || invoice.pdfURL;
+
             setMessages(prev => [
                 ...prev,
-                { text: 'Success! Opening PDF now...', sender: 'bot' }
+                { text: 'Success! Invoice created.', sender: 'bot' }
             ]);
 
-            // 3. Navigate the CURRENT TAB to the PDF immediately
-            // This will replace the chat screen with the PDF file
-            window.location.href = pdfUrl;
+            if (rawPdfUrl) {
+                // If it's a Cloudinary link, use it directly. If local, add prefix.
+                const finalLink = rawPdfUrl.startsWith('http')
+                    ? rawPdfUrl
+                    : `http://localhost:3000${rawPdfUrl}`;
+
+                window.location.href = finalLink;
+            } else {
+                // PDF is generating in background (Async)
+                setMessages(prev => [
+                    ...prev,
+                    { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }
+                ]);
+                setTimeout(() => {
+                    router.refresh();
+                    router.push('/my-insurance-forms');
+                    
+                
+                }, 2000);
+            }
 
         } catch (err: any) {
             console.error(err);
+            let errorMsg = 'Submission failed.';
+            if (err.message) {
+                if (Array.isArray(err.message)) {
+                    errorMsg = err.message.join(', ');
+                } else {
+                    errorMsg = err.message;
+                }
+            }
             setMessages(prev => [
                 ...prev,
-                {
-                    text: err.message || 'Submission failed. Please try again.',
-                    sender: 'bot',
-                },
+                { text: errorMsg, sender: 'bot' },
             ]);
-            setIsSubmitting(false); // Only re-enable submit if there was an error
+            setIsSubmitting(false);
         }
     };
 

@@ -1,157 +1,95 @@
-'use client';
-
+"use client";
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getMyInsuranceForms } from '../api';
-
-// Define the shape of the form data
-interface InsuranceForm {
-    _id: string;
-    itemName: string;
-    createdAt: string;
-    supplierName: string;
-    buyerName: string;
-    quantity: number | string;
-    rate: number | string;
-    amount: number | string;
-    vehicleNumber?: string;
-    hsn?: string;
-    placeOfSupply?: string;
-    notes?: string;
-    pdfURL?: string;
-}
+import {
+    getMyInsuranceForms,
+    InsuranceForm, // Import the shared type instead of redefining it
+    getBackendURL
+} from '../api';
 
 const MyInsuranceForms = () => {
-    const [forms, setForms] = useState<InsuranceForm[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string>('');
     const router = useRouter();
+    const [forms, setForms] = useState<InsuranceForm[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchForms = async () => {
-            console.log("Fetching forms..."); // Debug log
-
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    console.log("No token found, redirecting...");
-                    router.push('/');
-                    return;
-                }
-
-                // Call the API function
-                const data = await getMyInsuranceForms();
-                console.log("Forms fetched successfully:", data); // Debug log
-
-                // Ensure data is an array before setting it
-                if (Array.isArray(data)) {
-                    setForms(data);
-                } else {
-                    console.error("Data received is not an array:", data);
-                    setForms([]);
-                }
-            } catch (err: any) {
-                console.error('Fetch forms error:', err);
-                setError(err.message || 'Failed to load insurance forms.');
-            } finally {
-                // THIS MUST RUN TO STOP THE LOADING SPINNER
-                console.log("Finished fetching, stopping loader.");
-                setLoading(false);
-            }
-        };
-
         fetchForms();
-    }, [router]);
+    }, []);
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-[#eae7f6] flex flex-col items-center justify-center">
-                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-600">Loading forms...</p>
-                {/* Temporary button to force stop loading if stuck */}
-                <button onClick={() => setLoading(false)} className="text-xs text-blue-500 mt-4 underline">
-                    Force Stop Loading
-                </button>
-            </div>
-        );
-    }
+    const fetchForms = async () => {
+        try {
+            const data = await getMyInsuranceForms();
+            setForms(data);
+        } catch (err: any) {
+            setError(err.message || 'Failed to load forms');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    if (error) {
-        return (
-            <div className="min-h-screen bg-[#e0d7fc] p-5 flex flex-col items-center justify-center text-center">
-                <div className="bg-white p-6 rounded-xl shadow-lg">
-                    <h2 className="text-red-500 font-bold text-lg mb-2">Error Loading Data</h2>
-                    <p className="text-gray-600 mb-4">{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-                    >
-                        Try Again
-                    </button>
-                    <br />
-                    <button
-                        onClick={() => router.push('/home')}
-                        className="text-gray-500 text-sm mt-4 underline"
-                    >
-                        Back to Home
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    const handleDownload = (pdfUrl?: string) => {
+        if (!pdfUrl) {
+            alert('PDF not available');
+            return;
+        }
+        // If it's a full Cloudinary URL, use it. Otherwise prepend backend URL.
+        const link = pdfUrl.startsWith('http')
+            ? pdfUrl
+            : `${getBackendURL()}${pdfUrl}`;
+
+        window.open(link, '_blank');
+    };
+
+    if (loading) return <div className="p-4 text-center">Loading...</div>;
+    if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
     return (
-        <div className="min-h-screen bg-[#e0d7fc] pb-28">
-            {/* Header */}
-            <div className="bg-white text-black px-5 py-4 rounded-b-4xl mb-4 shadow-sm">
-                <div className="flex items-center justify-between">
+        <div className="min-h-screen bg-[#efeae2] p-4">
+            <div className="max-w-4xl mx-auto">
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-[#075E54]">My Invoices</h1>
                     <button
-                        onClick={() => router.push('/home')}
-                        className="p-2 -ml-2 rounded-full hover:bg-gray-100"
+                        onClick={() => router.push('/insurance')}
+                        className="bg-[#25D366] text-white px-4 py-2 rounded-lg hover:bg-[#20bd5a]"
                     >
-                        <span className="text-xl">←</span>
+                        + New Invoice
                     </button>
-                    <h2 className="text-lg font-bold">My Forms</h2>
-                    <div className="w-8"></div>
                 </div>
-            </div>
 
-            <div className="max-w-6xl mx-auto px-4">
                 {forms.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow p-8 text-center mt-10">
-                        <p className="text-gray-500 mb-4">No insurance forms found.</p>
-                        <button
-                            onClick={() => router.push('/insurance')}
-                            className="bg-[#4309ac] text-white px-6 py-2 rounded-full"
-                        >
-                            Create New Form
-                        </button>
+                    <div className="text-center text-gray-500 mt-10">
+                        <p>No invoices found.</p>
                     </div>
                 ) : (
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4">
                         {forms.map((form) => (
-                            <div key={form._id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-gray-800">{form.itemName}</h3>
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                        {new Date(form.createdAt).toLocaleDateString()}
+                            <div key={form.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-bold text-lg">{form.invoiceNumber}</p>
+                                        <p className="text-sm text-gray-500">
+                                            {new Date(form.invoiceDate).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                                        ₹{form.amount}
                                     </span>
                                 </div>
-                                <div className="text-sm text-gray-600 space-y-1">
-                                    <p><strong>Buyer:</strong> {form.buyerName}</p>
-                                    <p><strong>Amount:</strong> ₹{form.amount}</p>
-                                    <p><strong>Vehicle:</strong> {form.vehicleNumber}</p>
+
+                                <div className="mt-3 text-sm text-gray-700 space-y-1">
+                                    <p><strong>Bill To:</strong> {form.billToName}</p>
+                                    <p><strong>Item:</strong> {form.productName && form.productName[0]}</p>
                                 </div>
-                                {form.pdfURL && (
-                                    <a
-                                        href={`http://localhost:5000${form.pdfURL}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-3 block w-full text-center bg-[#4309ac] text-white py-2 rounded-lg text-sm font-medium"
+
+                                <div className="mt-4 flex gap-3">
+                                    <button
+                                        onClick={() => handleDownload(form.pdfUrl || form.pdfURL)}
+                                        className="text-[#075E54] font-medium hover:underline text-sm flex items-center gap-1"
                                     >
-                                        Download PDF
-                                    </a>
-                                )}
+                                        📄 Download PDF
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
