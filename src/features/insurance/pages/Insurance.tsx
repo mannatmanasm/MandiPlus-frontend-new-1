@@ -19,6 +19,7 @@ interface FormData {
     quantity: string | number;
     rate: string | number;
     vehicleNumber: string;
+    cashOrCommission: string;
     notes: string;
 }
 
@@ -47,73 +48,73 @@ const questions: Question[] = [
         field: 'language',
         type: 'language',
         text: {
-            en: "Namaste! Select your language / नमस्ते! अपनी भाषा चुनें\nType 1 - English\nType 2 - हिंदी",
-            hi: "Namaste! Select your language / नमस्ते! अपनी भाषा चुनें\nType 1 - English\nType 2 - हिंदी"
+            en: "Bhasha / Language\nType 1 - English\nType 2 - Hindi",
+            hi: "भाषा चुनें \nType 1 - English\nType 2 - Hindi"
         }
     },
     {
         field: 'supplierName',
         type: 'text',
         text: {
-            en: "Who is sending the goods? (Supplier Name)",
-            hi: "माल भेजने वाली पार्टी का नाम क्या है?"
+            en: "Supplier Kaun",
+            hi: "माल भेजने वाला"
         }
     },
     {
         field: 'supplierAddress',
         type: 'text',
         text: {
-            en: "Where are they from? (Supplier Address)",
-            hi: "सप्लायर का एड्रेस कहाँ का है?"
+            en: "Kahan Se",
+            hi: "भेजने वाले का पता"
         }
     },
-    {
-        field: 'placeOfSupply',
-        type: 'text',
-        text: {
-            en: "Where does the delivery go? (Place of Supply)",
-            hi: "माल कहाँ पहुँचाना है?"
-        }
-    },
+    // {
+    //     field: 'placeOfSupply',
+    //     type: 'text',
+    //     text: {
+    //         en: "Kahan Tak",
+    //         hi: "माल कहाँ जाएगा"
+    //     }
+    // },
     {
         field: 'buyerName',
         type: 'text',
         text: {
-            en: "Who is buying? (Buyer Party Name)",
-            hi: "माल खरीदने वाली पार्टी का नाम क्या है?"
+            en: "Party Kaun",
+            hi: "पार्टी का नाम"
         }
     },
     {
         field: 'buyerAddress',
         type: 'text',
         text: {
-            en: "What is the Buyer's address?",
-            hi: "खरीदने वाली पार्टी का एड्रेस बताइये।"
+            en: "Party Address",
+            hi: "पार्टी का पता"
         }
     },
     {
         field: 'itemName',
         type: 'text',
         text: {
-            en: "What is the item? (e.g., Rice, Wheat)",
-            hi: "माल में क्या आइटम है? (जैसे - चावल, गेहूं)"
+            en: "Item Kya",
+            hi: "आइटम का नाम"
         }
     },
-    {
-        field: 'hsn',
-        type: 'text',
-        text: {
-            en: "Do you know the HSN code?",
-            hi: "अगर HSN कोड पता है तो बता दीजिये।"
-        }
-    },
+    // {
+    //     field: 'hsn',
+    //     type: 'text',
+    //     text: {
+    //         en: "HSN Code",
+    //         hi: "HSN कोड"
+    //     }
+    // },
     {
         field: 'quantity',
         type: 'number',
         step: "0.01",
         text: {
-            en: "How much quantity/weight?",
-            hi: "कितना माल है?"
+            en: "Kitna Maal",
+            hi: "कुल वजन/मात्रा"
         }
     },
     {
@@ -121,16 +122,16 @@ const questions: Question[] = [
         type: 'number',
         step: "0.01",
         text: {
-            en: "What is the rate/price?",
-            hi: "क्या भाव लगा है?"
+            en: "Kya Bhaav",
+            hi: "रेट/भाव"
         }
     },
     {
         field: 'vehicleNumber',
         type: 'text',
         text: {
-            en: "What is the vehicle number?",
-            hi: "गाड़ी नंबर क्या है?"
+            en: "Gaadi No.",
+            hi: "गाड़ी नंबर"
         }
     },
     {
@@ -138,8 +139,8 @@ const questions: Question[] = [
         type: 'text',
         optional: true,
         text: {
-            en: "Any other details? (Optional)",
-            hi: "कोई और खास बात या नोट? (वैकल्पिक)"
+            en: "Cash ya Commission",
+            hi: "नकद या कमीशन"
         }
     },
     {
@@ -147,8 +148,8 @@ const questions: Question[] = [
         type: 'file',
         optional: true,
         text: {
-            en: "Upload the Weightment Slip (Kanta Parchi)",
-            hi: "कांटा पर्ची की फोटो भेजें (वैकल्पिक)"
+            en: "Parchi Photo",
+            hi: "कांटा पर्ची"
         }
     },
 ];
@@ -169,6 +170,7 @@ const Insurance = () => {
         quantity: '',
         rate: '',
         vehicleNumber: '',
+        cashOrCommission: '',
         notes: '',
     });
 
@@ -202,7 +204,7 @@ const Insurance = () => {
             // --- 1. GENERATED FIELDS ---
             submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
-            submitData.append('placeOfSupply', formData.placeOfSupply || 'State');
+            submitData.append('placeOfSupply', formData.supplierAddress || 'State');//Made place of supply same as supplier address
 
             // --- 2. ARRAY FIELDS (Use [] suffix) ---
             const supAddr = formData.supplierAddress || 'Unknown Address';
@@ -269,10 +271,9 @@ const Insurance = () => {
                     { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }
                 ]);
                 setTimeout(() => {
-                    router.refresh();
-                    router.push('/my-insurance-forms');
-                    
-                
+                    router.push("/home");
+
+
                 }, 2000);
             }
 
@@ -312,8 +313,8 @@ const Insurance = () => {
             setMessages(prev => [
                 ...prev,
                 { text: 'Tender Coconut', sender: 'user' },
-                { text: getQuestionText(questions[questions.findIndex(q => q.field === 'hsn')]), sender: 'bot' },
-                { text: '08011910', sender: 'user' }
+                // { text: getQuestionText(questions[questions.findIndex(q => q.field === 'hsn')]), sender: 'bot' },
+                // { text: '08011910', sender: 'user' }
             ]);
         }
 
@@ -450,8 +451,8 @@ const Insurance = () => {
                     <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div
                             className={`max-w-[75%] px-3 py-2 text-sm rounded-lg shadow-sm ${m.sender === 'user'
-                                    ? 'bg-[#dcf8c6] rounded-br-none text-black' // Added text-black
-                                    : 'bg-white rounded-bl-none text-black'     // Added text-black
+                                ? 'bg-[#dcf8c6] rounded-br-none text-black' // Added text-black
+                                : 'bg-white rounded-bl-none text-black'     // Added text-black
                                 }`}
                         >
                             <div className="whitespace-pre-line">{m.text}</div>
