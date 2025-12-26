@@ -1,9 +1,10 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowLeftCircleIcon } from '@heroicons/react/24/outline';
 import {
     getMyInsuranceForms,
-    InsuranceForm, // Import the shared type instead of redefining it
+    InsuranceForm,
     getBackendURL
 } from '../api';
 
@@ -45,16 +46,24 @@ const MyInsuranceForms = () => {
     if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
     return (
-        <div className="min-h-screen bg-[#efeae2] p-4">
+        <div className="min-h-screen bg-[#e0d7fc] p-4">
             <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold text-[#075E54]">My Invoices</h1>
+                <div className="flex items-center justify-between mb-6">
                     <button
-                        onClick={() => router.push('/insurance')}
-                        className="bg-[#25D366] text-white px-4 py-2 rounded-lg hover:bg-[#20bd5a]"
+                        onClick={() => router.push('/home')}
+                        className="flex items-center text-[#4309ac] hover:text-[#340b85] transition-colors"
                     >
-                        + New Invoice
+                        <ArrowLeftCircleIcon className="w-8 h-8 mr-1" />
                     </button>
+                    <h1 className="text-xl font-bold text-slate-800">My Invoices</h1>
+                    <div className="w-20">
+                        <button
+                            onClick={() => router.push('/insurance')}
+                            className="bg-[#4309ac] text-white px-4 py-2 rounded-lg hover:bg-[#340b85] transition-colors"
+                        >
+                            + New
+                        </button>
+                    </div>
                 </div>
 
                 {forms.length === 0 ? (
@@ -65,14 +74,14 @@ const MyInsuranceForms = () => {
                     <div className="grid gap-4">
                         {forms.map((form) => (
                             <div key={form.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
-                                <div className="flex justify-between items-start">
+                                <div className="flex justify-between items-start text-slate-800">
                                     <div>
                                         <p className="font-bold text-lg">{form.invoiceNumber}</p>
                                         <p className="text-sm text-gray-500">
                                             {new Date(form.invoiceDate).toLocaleDateString()}
                                         </p>
                                     </div>
-                                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                                    <span className="bg-purple-100 text-[#4309ac] text-xs px-2 py-1 rounded">
                                         ₹{form.amount}
                                     </span>
                                 </div>
@@ -87,7 +96,7 @@ const MyInsuranceForms = () => {
                                         onClick={() => handleDownload(form.pdfUrl || form.pdfURL)}
                                         className="text-[#075E54] font-medium hover:underline text-sm flex items-center gap-1"
                                     >
-                                        📄 Download PDF
+                                        <span className="text-[#4309ac]">📄</span> Download PDF
                                     </button>
                                 </div>
                             </div>
