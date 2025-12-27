@@ -428,7 +428,9 @@ const Insurance = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
                     </button>
-                    <div className="w-9 h-9 rounded-full bg-gray-300" />
+                    <div className="w-9 h-9 rounded-full">
+                        <img className="w-full h-full rounded-full object-cover" src="/images/logo.jpeg" alt="" />
+                        </div>
                     <div>
                         <p className="font-medium leading-none">Mandi Plus</p>
                         <p className="text-xs opacity-80">online</p>

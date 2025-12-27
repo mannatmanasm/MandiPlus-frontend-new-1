@@ -50,6 +50,8 @@ const indianStates = [
   { value: "DELHI", label: "Delhi" },
 ];
 
+import Image from "next/image";
+
 const RegisterPage = () => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -111,6 +113,20 @@ const RegisterPage = () => {
 
   return (
     <div className={`min-h-screen bg-gray-300 flex flex-col justify-end`}>
+      {/* Hero Image */}
+      <div
+        className={`w-full ${formData.showOtpField ? 'h-[70vh]' : 'h-[35vh]'} relative transition-all duration-300`}
+      >
+        <Image
+          src="/images/truck-img.jpg"
+          alt="Truck on the road"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-300 to-transparent" />
+      </div>
+
       {/* Bottom Sheet */}
       <div className="bg-white rounded-t-3xl px-6 py-8 shadow-2xl">
         <h2

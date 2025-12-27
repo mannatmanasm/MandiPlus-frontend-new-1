@@ -28,7 +28,7 @@ const LandingPage = () => {
         {/* Footer */}
         <div className="absolute bottom-6 left-12 flex items-center gap-2 text-xs text-white">
           <img
-            src="/images/india.png"
+            src="/images/india-flag.jpg"
             alt="India"
             className="w-8 h-8 object-contain rounded-full"
           />

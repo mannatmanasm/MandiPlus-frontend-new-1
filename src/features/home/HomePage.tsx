@@ -112,13 +112,10 @@ const HomePage = () => {
               className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
               onClick={() => router.push("/insurance")}
             >
-              <h4 className="font-semibold mb-1 text-slate-800">Insurance</h4>
+              <h4 className="font-semibold mb-1 text-slate-800">Create Insurance Forms</h4>
               <p className="text-xs text-gray-500 mb-2">
                 Get policy instantly
               </p>
-              <span className="inline-block text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full">
-                Zero commission
-              </span>
             </div>
 
             <div
@@ -135,7 +132,7 @@ const HomePage = () => {
               className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
               onClick={() => router.push("/my-insurance-forms")}
             >
-              <h4 className="font-semibold mb-1 text-slate-800">My Forms</h4>
+              <h4 className="font-semibold mb-1 text-slate-800">My Policies</h4>
               <p className="text-xs text-gray-500">Submitted forms</p>
             </div>
           </div>

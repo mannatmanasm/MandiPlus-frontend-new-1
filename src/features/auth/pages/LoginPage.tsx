@@ -10,6 +10,8 @@ import { login as apiLogin, verifyLoginOtp } from "@/features/auth/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 
+import Image from "next/image";
+
 const LoginPage = () => {
     const router = useRouter();
     // 1. Get the login function from your Context
@@ -72,9 +74,20 @@ const LoginPage = () => {
     };
 
     return (
-        // ... (Your JSX remains exactly the same)
         <div className={`min-h-screen bg-gray-300 flex flex-col justify-end`}>
-            {/* ... rest of your UI ... */}
+            {/* Hero Image */}
+            <div className="w-full h-[50vh] relative">
+                <Image
+                    src="/images/truck-img.jpg"
+                    alt="Truck on the road"
+                    fill
+                    className="object-cover"
+                    priority
+                />
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-300 to-transparent" />
+            </div>
+
+            {/* Bottom Sheet */}
             <div className="bg-white rounded-t-3xl px-6 py-8 shadow-2xl">
                 <h2
                     className="text-2xl font-bold mb-1 text-gray-800"
