@@ -1,9 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const LandingPage = () => {
   const router = useRouter();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.push("/register");
+    }, 2000);
+
+    // Cleanup the timer if the component unmounts before 2 seconds
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 relative">

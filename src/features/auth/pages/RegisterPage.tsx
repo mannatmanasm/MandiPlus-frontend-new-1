@@ -9,6 +9,7 @@ import Select from "@/shared/components/Select";
 import { register, verifyRegisterOtp } from "@/features/auth/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
+import Image from "next/image";
 
 interface FormData {
   name: string;
@@ -50,8 +51,6 @@ const indianStates = [
   { value: "DELHI", label: "Delhi" },
 ];
 
-import Image from "next/image";
-
 const RegisterPage = () => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -84,7 +83,7 @@ const RegisterPage = () => {
         }
 
         await register({ name, mobileNumber, state });
-        setFormData(prev => ({ ...prev, showOtpField: true }));
+        setFormData((prev) => ({ ...prev, showOtpField: true }));
         toast.success("OTP sent successfully!");
       } else {
         if (!formData.otp || formData.otp.length !== 6) {
@@ -99,9 +98,8 @@ const RegisterPage = () => {
 
         if (response.accessToken) {
           toast.success("Registration successful!");
-          // The AuthProvider will handle the redirection based on the updated auth state
           router.push("/home");
-          router.refresh(); // Refresh to ensure auth state is updated
+          router.refresh();
         }
       }
     } catch (err: any) {
@@ -112,23 +110,22 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-gray-300 flex flex-col justify-end`}>
-      {/* Hero Image */}
-      <div
-        className={`w-full ${formData.showOtpField ? 'h-[70vh]' : 'h-[35vh]'} relative transition-all duration-300`}
-      >
+    <div className="min-h-screen bg-gray-300 flex flex-col relative overflow-hidden">
+
+      {/* FIXED: Added min-h-[350px] to ensure truck is always visible */}
+      <div className="w-full h-[50vh] min-h-[350px] relative flex-shrink-0">
         <Image
           src="/images/truck-img.jpg"
           alt="Truck on the road"
           fill
-          className="object-cover"
+          className="object-cover object-center"
           priority
+          sizes="100vw"
         />
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-300 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/20 to-transparent" />
       </div>
 
-      {/* Bottom Sheet */}
-      <div className="bg-white rounded-t-3xl px-6 py-8 shadow-2xl">
+      <div className="flex-1 bg-white -mt-10 rounded-t-3xl px-6 py-8 shadow-2xl relative z-10 flex flex-col">
         <h2
           className="text-2xl font-bold mb-1 text-gray-800"
           style={{ fontFamily: "Poppins, sans-serif" }}
@@ -136,11 +133,9 @@ const RegisterPage = () => {
           Welcome to <span className="text-[#4309ac]">MandiPlus</span>
         </h2>
 
-        <p className="text-gray-800 mb-6">
-          Create your account
-        </p>
+        <p className="text-gray-800 mb-6">Create your account</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 flex-1 flex flex-col">
           {!formData.showOtpField ? (
             <>
               <Input
@@ -190,25 +185,27 @@ const RegisterPage = () => {
             </>
           )}
 
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"
-              }`}
-          >
-            {isLoading
-              ? "Processing..."
-              : formData.showOtpField
-                ? "Verify OTP"
-                : "Continue"}
-          </Button>
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"
+                }`}
+            >
+              {isLoading
+                ? "Processing..."
+                : formData.showOtpField
+                  ? "Verify OTP"
+                  : "Continue"}
+            </Button>
+          </div>
 
           <div className="text-center text-sm">
             {formData.showOtpField ? (
               <button
                 type="button"
                 onClick={() =>
-                  setFormData(prev => ({ ...prev, showOtpField: false }))
+                  setFormData((prev) => ({ ...prev, showOtpField: false }))
                 }
                 className="text-[#4309ac]"
               >
@@ -224,7 +221,7 @@ const RegisterPage = () => {
             )}
           </div>
 
-          <p className="text-xs text-gray-400 text-center pt-2">
+          <p className="text-xs text-gray-400 text-center pt-2 mt-auto">
             By continuing, I agree to Terms of Use & Privacy Policy
           </p>
         </form>

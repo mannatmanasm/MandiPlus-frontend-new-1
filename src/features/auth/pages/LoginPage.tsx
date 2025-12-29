@@ -14,8 +14,6 @@ import Image from "next/image";
 
 const LoginPage = () => {
     const router = useRouter();
-    // 1. Get the login function from your Context
-    // (Check your AuthContext: is it named 'login', 'setToken', or 'setUser'?)
     const { login: contextLogin } = useAuth();
 
     const [isLoading, setIsLoading] = useState(false);
@@ -47,20 +45,14 @@ const LoginPage = () => {
 
                 const response = await verifyLoginOtp({ mobileNumber, otp });
 
-                // Check what the backend actually sent
-                console.log("Backend Login Response:", response);
-
                 // Use 'accessToken' or 'token' depending on what the console log says
                 const token = response.accessToken;
 
                 if (token) {
                     if (contextLogin) {
-                        // Await the login to ensure state updates before anything else happens
                         await contextLogin(token, response.user);
                     }
                     toast.success("Login successful!");
-                    // router.push("/home") is now handled inside AuthContext, 
-                    // but you can keep it here as a backup if you want.
                 } else {
                     toast.error("Login failed: No access token received");
                 }
@@ -74,21 +66,26 @@ const LoginPage = () => {
     };
 
     return (
-        <div className={`min-h-screen bg-gray-300 flex flex-col justify-end`}>
-            {/* Hero Image */}
-            <div className="w-full h-[50vh] relative">
+        // Updated Main Container to match RegisterPage
+        <div className="min-h-screen bg-gray-300 flex flex-col relative overflow-hidden">
+
+            {/* Updated Image Container: Added min-h and flex-shrink */}
+            <div className="w-full h-[50vh] min-h-[350px] relative flex-shrink-0">
                 <Image
                     src="/images/truck-img.jpg"
                     alt="Truck on the road"
                     fill
-                    className="object-cover"
+                    // Added object-center for better focus
+                    className="object-cover object-center"
                     priority
+                    sizes="100vw"
                 />
-                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-300 to-transparent" />
+                {/* Updated Gradient to match RegisterPage visual */}
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/20 to-transparent" />
             </div>
 
-            {/* Bottom Sheet */}
-            <div className="bg-white rounded-t-3xl px-6 py-8 shadow-2xl">
+            {/* Updated Bottom Sheet: Added flex-1, negative margin (-mt-10), and z-index */}
+            <div className="flex-1 bg-white -mt-10 rounded-t-3xl px-6 py-8 shadow-2xl relative z-10 flex flex-col">
                 <h2
                     className="text-2xl font-bold mb-1 text-gray-800"
                     style={{ fontFamily: "Poppins, sans-serif" }}
@@ -96,9 +93,7 @@ const LoginPage = () => {
                     Welcome to <span className="text-[#4309ac]">MandiPlus</span>
                 </h2>
 
-                <p className="text-gray-800 mb-6">
-                    Sign in to your account
-                </p>
+                <p className="text-gray-800 mb-6">Sign in to your account</p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {!showOtpField ? (
@@ -128,11 +123,14 @@ const LoginPage = () => {
                     <Button
                         type="submit"
                         disabled={isLoading}
-                        className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"}`}
+                        className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"
+                            }`}
                     >
                         {isLoading
                             ? "Processing..."
-                            : showOtpField ? "Verify OTP" : "Get OTP"}
+                            : showOtpField
+                                ? "Verify OTP"
+                                : "Get OTP"}
                     </Button>
 
                     <div className="text-center text-sm">
