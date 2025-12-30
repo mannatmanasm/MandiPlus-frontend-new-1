@@ -7,7 +7,7 @@ const LandingPage = () => {
   const router = useRouter();
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push("/register");
+      router.push("/login");
     }, 2000);
 
     // Cleanup the timer if the component unmounts before 2 seconds

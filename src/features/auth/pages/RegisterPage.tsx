@@ -1,23 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/shared/components/Button";
 import Input from "@/shared/components/Input";
 import Select from "@/shared/components/Select";
-import { register, verifyRegisterOtp } from "@/features/auth/api";
+import { register } from "@/features/auth/api";
 import { toast } from "react-toastify";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext"; // Import useAuth
 import Image from "next/image";
-
-interface FormData {
-  name: string;
-  mobileNumber: string;
-  state: string;
-  otp: string;
-  showOtpField: boolean;
-}
 
 const indianStates = [
   { value: "ANDHRA_PRADESH", label: "Andhra Pradesh" },
@@ -53,57 +44,50 @@ const indianStates = [
 
 const RegisterPage = () => {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const { login } = useAuth(); // Get login function
   const [isLoading, setIsLoading] = useState(false);
 
-  const [formData, setFormData] = useState<FormData>({
+  const initialMobile = searchParams.get('mobile') || "";
+
+  const [formData, setFormData] = useState({
     name: "",
-    mobileNumber: "",
+    mobileNumber: initialMobile,
     state: "",
-    otp: "",
-    showOtpField: false,
   });
+
+  useEffect(() => {
+    if (initialMobile) {
+      setFormData(prev => ({ ...prev, mobileNumber: initialMobile }));
+    }
+  }, [initialMobile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
+    const { name, mobileNumber, state } = formData;
+
+    if (!name || !mobileNumber || !state) {
+      toast.error("Please fill all fields");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      if (!formData.showOtpField) {
-        const { mobileNumber, name, state } = formData;
+      const response = await register({ name, mobileNumber, state });
 
-        if (!mobileNumber || !name || !state) {
-          toast.error("Please fill in all required fields");
-          return;
-        }
-
-        if (!/^[6-9]\d{9}$/.test(mobileNumber)) {
-          toast.error("Please enter a valid 10-digit Indian mobile number");
-          return;
-        }
-
-        await register({ name, mobileNumber, state });
-        setFormData((prev) => ({ ...prev, showOtpField: true }));
-        toast.success("OTP sent successfully!");
-      } else {
-        if (!formData.otp || formData.otp.length !== 6) {
-          toast.error("Enter valid 6-digit OTP");
-          return;
-        }
-
-        const response = await verifyRegisterOtp({
-          mobileNumber: formData.mobileNumber,
-          otp: formData.otp,
-        });
-
-        if (response.accessToken) {
-          toast.success("Registration successful!");
-          router.push("/home");
-          router.refresh();
-        }
+      // ----------------------------------------------------
+      // CRITICAL FIX: Update Context BEFORE redirecting
+      // ----------------------------------------------------
+      if (response.accessToken) {
+        await login(response.accessToken, response.user);
+        toast.success("Account created successfully!");
+        router.push("/home");
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Something went wrong");
+
+    } catch (error: any) {
+      toast.error(error.message || "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -111,132 +95,56 @@ const RegisterPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-300 flex flex-col relative overflow-hidden">
-
-      {/* FIXED IMAGE CONTAINER:
-        1. Removed 'h-[50vh]' and 'fill' which forced cropping.
-        2. Added 'pb-8'. This creates a buffer zone at the bottom of the container.
-        3. The buffer zone is what gets overlapped by the form, ensuring the actual image is not covered.
-      */}
       <div className="w-full relative bg-gray-200 pb-8">
         <Image
           src="/images/truck-img.png"
           alt="MandiPlus Truck"
-          // Providing width/height allows Next.js to calculate aspect ratio.
-          // Adjust these numbers to match your actual image resolution if needed.
           width={1200}
           height={800}
-          // 'w-full h-auto' ensures it fits the width and scales height automatically.
-          // 'object-contain' is default behavior for standard img tags, ensuring no cropping.
           className="w-full h-auto block"
           priority
         />
-        {/* Subtle shadow gradient at the bottom to blend the overlap area */}
         <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/5 to-transparent" />
       </div>
 
-      {/* FORM CONTAINER:
-        1. '-mt-8' pulls the form up exactly into the padding buffer we created above.
-        2. This creates the rounded overlap effect WITHOUT hiding the truck's tires or bottom text.
-      */}
       <div className="flex-1 bg-white -mt-8 px-6 py-8 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] relative z-10 flex flex-col">
-        <h2
-          className="text-2xl font-bold mb-1 text-gray-800"
-          style={{ fontFamily: "Poppins, sans-serif" }}
-        >
+        <h2 className="text-2xl font-bold mb-1 text-gray-800" style={{ fontFamily: "Poppins, sans-serif" }}>
           Welcome to <span className="text-[#4309ac]">MandiPlus</span>
         </h2>
-
-        <p className="text-gray-800 mb-6">Create your account</p>
+        <p className="text-gray-800 mb-6">Complete your profile</p>
 
         <form onSubmit={handleSubmit} className="space-y-4 flex-1 flex flex-col">
-          {!formData.showOtpField ? (
-            <>
-              <Input
-                className="bg-gray-100/80"
-                placeholder="Full Name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
+          <Input
+            className="bg-gray-100/80"
+            placeholder="Full Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          />
 
-              <Input
-                className="bg-gray-100/80"
-                placeholder="Mobile Number"
-                maxLength={10}
-                value={formData.mobileNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, mobileNumber: e.target.value })
-                }
-              />
+          <Input
+            className="bg-gray-100/80 opacity-70"
+            placeholder="Mobile Number"
+            value={formData.mobileNumber}
+            readOnly
+          />
 
-              <Select
-                className="bg-gray-200/80"
-                placeholder="Select State"
-                options={indianStates}
-                value={formData.state}
-                onChange={(e) =>
-                  setFormData({ ...formData, state: e.target.value })
-                }
-              />
-            </>
-          ) : (
-            <>
-              <p className="text-center text-sm text-gray-700">
-                Enter OTP sent to {formData.mobileNumber}
-              </p>
-
-              <Input
-                className="bg-gray-100/80 text-center tracking-widest"
-                placeholder="Enter 6-digit OTP"
-                maxLength={6}
-                value={formData.otp}
-                onChange={(e) =>
-                  setFormData({ ...formData, otp: e.target.value })
-                }
-              />
-            </>
-          )}
+          <Select
+            className="bg-gray-200/80"
+            placeholder="Select State"
+            options={indianStates}
+            value={formData.state}
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+          />
 
           <div className="pt-2">
             <Button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"
-                }`}
+              className={`w-full py-3 rounded-xl text-white ${isLoading ? "bg-gray-400" : "bg-[#4309ac]"}`}
             >
-              {isLoading
-                ? "Processing..."
-                : formData.showOtpField
-                  ? "Verify OTP"
-                  : "Continue"}
+              {isLoading ? "Creating Account..." : "Register"}
             </Button>
           </div>
-
-          <div className="text-center text-sm">
-            {formData.showOtpField ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData((prev) => ({ ...prev, showOtpField: false }))
-                }
-                className="text-[#4309ac]"
-              >
-                Back to edit details
-              </button>
-            ) : (
-              <p className="text-slate-900">
-                Already have an account?{" "}
-                <Link href="/login" className="text-[#4309ac]">
-                  Login
-                </Link>
-              </p>
-            )}
-          </div>
-
-          <p className="text-xs text-gray-400 text-center pt-2 mt-auto">
-            By continuing, I agree to Terms of Use & Privacy Policy
-          </p>
         </form>
       </div>
     </div>

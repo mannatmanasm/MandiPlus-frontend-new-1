@@ -29,7 +29,7 @@ const handleViewPdf = (url: string | undefined) => {
     // Handle relative vs absolute URLs
     const fullUrl = url.startsWith('http')
         ? url
-        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${url}`;
+        : `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}${url}`;
     window.open(fullUrl, '_blank');
 };
 
@@ -58,7 +58,7 @@ export default function InsuranceFormsPage() {
 
                 // --- 2. Call the Correct Backend Endpoint ---
                 const response = await axios.get(
-                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/invoices`,
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/invoices`,
                     {
                         headers: { Authorization: `Bearer ${token}` }
                     }
