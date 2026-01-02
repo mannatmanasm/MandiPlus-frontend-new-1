@@ -2,7 +2,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUpIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import {
+    ArrowUpIcon,
+    PaperClipIcon,
+    PencilSquareIcon, // Added
+    CheckIcon,        // Added
+    XMarkIcon,        // Added
+    ArrowPathIcon,    // Added
+    TrashIcon         // Added
+} from '@heroicons/react/24/outline';
+import Cropper, { ReactCropperElement } from 'react-cropper'; // Import Cropper
+import "cropperjs/dist/cropper.css"; // Import CSS
 import { createInsuranceForm } from '../api';
 
 // --- Types ---
@@ -29,15 +39,17 @@ interface QuestionText {
 
 interface Question {
     field: keyof FormData | 'language' | 'weightmentSlip';
-    type: 'text' | 'number' | 'language' | 'file';
+    type: 'text' | 'number' | 'language' | 'file' | 'select'; // Added 'select'
     text: QuestionText;
     optional?: boolean;
     step?: string;
+    options?: string[]; // Added options
 }
 
 interface Message {
     text: string;
     sender: 'bot' | 'user';
+    field?: keyof FormData | 'language' | 'weightmentSlip'; // Track field for editing
 }
 
 // --- Constants ---
@@ -119,7 +131,8 @@ const questions: Question[] = [
     },
     {
         field: 'notes',
-        type: 'text',
+        type: 'select', // Changed to Select
+        options: ['Cash', 'Commission'],
         optional: true,
         text: {
             en: "Cash ya Commission",
@@ -170,12 +183,24 @@ const InsuranceIOS = () => {
     ]);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
+
+    // Viewport States
     const [viewportHeight, setViewportHeight] = useState<string>('100vh');
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
     const viewportRef = useRef<HTMLDivElement>(null);
     const lastHeight = useRef<number>(0);
 
-    // Handle viewport height changes (mobile keyboard) with Visual Viewport API
+    // Edit States
+    const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
+    const [resumeQuestionIndex, setResumeQuestionIndex] = useState<number | null>(null);
+
+    // Cropper States
+    const [imageSrc, setImageSrc] = useState<string | null>(null);
+    const [isCropping, setIsCropping] = useState(false);
+    const cropperRef = useRef<ReactCropperElement>(null);
+    const [isCropperReady, setIsCropperReady] = useState(false);
+
+    // --- Viewport Logic (Preserved from your code) ---
     useEffect(() => {
         if (typeof window === 'undefined' || !('visualViewport' in window)) return;
 
@@ -185,17 +210,13 @@ const InsuranceIOS = () => {
             const newHeight = visualViewport.height;
             const offsetTop = visualViewport.offsetTop;
 
-            // Only update if height changed significantly (more than 1px)
             if (Math.abs(newHeight - lastHeight.current) > 1) {
                 lastHeight.current = newHeight;
                 setViewportHeight(`${newHeight}px`);
 
-                // Check if keyboard is visible
                 const keyboardVisible = newHeight < window.innerHeight * 0.7;
                 if (keyboardVisible !== isKeyboardVisible) {
                     setIsKeyboardVisible(keyboardVisible);
-
-                    // Scroll to bottom when keyboard appears
                     if (keyboardVisible) {
                         setTimeout(() => {
                             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -204,14 +225,12 @@ const InsuranceIOS = () => {
                 }
             }
 
-            // Apply transform to handle viewport offset
             if (viewportRef.current) {
                 viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
             }
         };
 
         const handleScroll = (e: Event) => {
-            // Prevent rubber-banding effect
             if (visualViewport.pageTop > 0) {
                 e.preventDefault();
                 window.scrollTo({ top: 0, behavior: 'auto' });
@@ -220,10 +239,7 @@ const InsuranceIOS = () => {
             return true;
         };
 
-        // Initial setup
         updateViewport();
-
-        // Add event listeners with passive: false to allow preventDefault
         visualViewport.addEventListener('resize', updateViewport);
         visualViewport.addEventListener('scroll', updateViewport);
         window.addEventListener('scroll', handleScroll, { passive: false });
@@ -239,56 +255,43 @@ const InsuranceIOS = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // --- Helpers ---
     const currentQuestion = questions[currentQuestionIndex];
     const isFileInput = currentQuestion.type === 'file';
+    const isSelectInput = currentQuestion.type === 'select';
 
+    // --- API Submission ---
     const submitInsuranceForm = async (fileArgument: File | null = null) => {
         if (isSubmitting) return;
         setIsSubmitting(true);
 
-        setMessages(prev => [
-            ...prev,
-            { text: 'Submitting details...', sender: 'bot' },
-        ]);
+        setMessages(prev => [...prev, { text: 'Submitting details...', sender: 'bot' }]);
 
         try {
             const submitData = new FormData();
-
-            // Add user ID from localStorage if available
             const userData = localStorage.getItem('user');
             if (userData) {
                 try {
                     const user = JSON.parse(userData);
-                    if (user.id) {
-                        submitData.append('userId', user.id);
-                    }
-                } catch (e) {
-                    console.error('Error parsing user data from localStorage', e);
-                }
+                    if (user.id) submitData.append('userId', user.id);
+                } catch (e) { console.error(e); }
             }
 
-            // --- 1. GENERATED FIELDS ---
             submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
             submitData.append('placeOfSupply', formData.supplierAddress || 'State');
 
-            // --- 2. ARRAY FIELDS (Use [] suffix) ---
             const supAddr = formData.supplierAddress || 'Unknown Address';
             submitData.append('supplierAddress[]', supAddr);
-
             const buyAddr = formData.buyerAddress || 'Unknown Address';
             submitData.append('billToAddress[]', buyAddr);
             submitData.append('shipToAddress[]', buyAddr);
 
-            const prodName = formData.itemName || 'Item';
-            submitData.append('productName', prodName);
-
-            // --- 3. STRING FIELDS ---
+            submitData.append('productName', formData.itemName || 'Item');
             submitData.append('supplierName', formData.supplierName || 'Unknown Supplier');
             submitData.append('billToName', formData.buyerName || 'Unknown Buyer');
             submitData.append('shipToName', formData.buyerName || 'Unknown Buyer');
 
-            // --- 4. NUMERIC FIELDS ---
             const qty = formData.quantity ? Number(formData.quantity) : 0;
             const rate = formData.rate ? Number(formData.rate) : 0;
             const amount = qty * rate;
@@ -297,7 +300,6 @@ const InsuranceIOS = () => {
             submitData.append('rate', String(rate));
             submitData.append('amount', String(amount));
 
-            // --- 5. OPTIONAL FIELDS ---
             if (formData.vehicleNumber) {
                 submitData.append('vehicleNumber', formData.vehicleNumber);
                 submitData.append('truckNumber', formData.vehicleNumber);
@@ -305,91 +307,76 @@ const InsuranceIOS = () => {
             if (formData.hsn) submitData.append('hsnCode', formData.hsn);
             if (formData.notes) submitData.append('weighmentSlipNote', formData.notes);
 
-            // --- 6. FILE UPLOAD ---
             const finalFile = fileArgument || weightmentSlip;
             if (finalFile) {
                 submitData.append('weighmentSlips', finalFile);
             }
 
-            // Call API with proper error handling
-            let invoice;
-            try {
-                invoice = await createInsuranceForm(submitData);
-            } catch (error) {
-                console.error('Error creating invoice:', error);
-                throw new Error('Failed to create invoice. Please try again.');
-            }
-
-            // Handle response
+            const invoice = await createInsuranceForm(submitData);
             const rawPdfUrl = invoice.pdfUrl || invoice.pdfURL;
 
-            setMessages(prev => [
-                ...prev,
-                { text: 'Success! Invoice created.', sender: 'bot' }
-            ]);
+            setMessages(prev => [...prev, { text: 'Success! Invoice created.', sender: 'bot' }]);
 
             if (rawPdfUrl) {
-                const finalLink = rawPdfUrl.startsWith('http')
-                    ? rawPdfUrl
-                    : `http://localhost:3000${rawPdfUrl}`;
-
+                const finalLink = rawPdfUrl.startsWith('http') ? rawPdfUrl : `http://localhost:3000${rawPdfUrl}`;
                 window.location.href = finalLink;
             } else {
-                setMessages(prev => [
-                    ...prev,
-                    { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }
-                ]);
-                setTimeout(() => {
-                    router.push("/home");
-                }, 2000);
+                setMessages(prev => [...prev, { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }]);
+                setTimeout(() => router.push("/home"), 2000);
             }
 
         } catch (err: any) {
             console.error(err);
             let errorMsg = 'Submission failed.';
-            if (err.message) {
-                if (Array.isArray(err.message)) {
-                    errorMsg = err.message.join(', ');
-                } else {
-                    errorMsg = err.message;
-                }
-            }
-            setMessages(prev => [
-                ...prev,
-                { text: errorMsg, sender: 'bot' },
-            ]);
+            if (err.message) errorMsg = Array.isArray(err.message) ? err.message.join(', ') : err.message;
+            setMessages(prev => [...prev, { text: errorMsg, sender: 'bot' }]);
             setIsSubmitting(false);
         }
     };
 
-    /* ========================= FLOW ========================= */
+    // --- Edit Logic ---
+    const handleEdit = (fieldToEdit: string) => {
+        const questionIndex = questions.findIndex(q => q.field === fieldToEdit);
+        const messageIndex = messages.findIndex(m => m.field === fieldToEdit);
+        if (questionIndex === -1 || messageIndex === -1) return;
+
+        if (editingMessageIndex === null) {
+            setResumeQuestionIndex(currentQuestionIndex);
+        }
+
+        setEditingMessageIndex(messageIndex);
+        setCurrentQuestionIndex(questionIndex);
+
+        if (fieldToEdit === 'weightmentSlip') {
+            setWeightmentSlip(null);
+        } else if (fieldToEdit === 'language') {
+            setInputValue(language === 'en' ? '1' : '2');
+        } else {
+            const val = formData[fieldToEdit as keyof FormData];
+            setInputValue(val ? String(val) : '');
+        }
+
+        setTimeout(() => textInputRef.current?.focus(), 100);
+    };
+
+    // --- Flow Logic ---
     const getQuestionText = (question: Question) => {
         return language ? question.text[language] : question.text.en;
     };
 
     const goToNextQuestion = () => {
         const currentQuestion = questions[currentQuestionIndex];
-
-        // Skip itemName and hsn questions as they have default values
         let nextIndex = currentQuestionIndex + 1;
-        if (currentQuestion.field === 'buyerAddress') {
-            // After buyerAddress, skip to quantity
-            nextIndex = questions.findIndex(q => q.field === 'quantity');
 
-            // Add auto-filled values to messages
-            setMessages(prev => [
-                ...prev,
-                { text: 'Tender Coconut', sender: 'user' },
-            ]);
+        if (currentQuestion.field === 'buyerAddress') {
+            nextIndex = questions.findIndex(q => q.field === 'quantity');
+            setMessages(prev => [...prev, { text: 'Tender Coconut', sender: 'user', field: 'itemName' }]);
         }
 
         if (nextIndex < questions.length) {
             setCurrentQuestionIndex(nextIndex);
             const nextQuestion = questions[nextIndex];
-            setMessages(prev => [...prev, {
-                text: getQuestionText(nextQuestion),
-                sender: 'bot'
-            }]);
+            setMessages(prev => [...prev, { text: getQuestionText(nextQuestion), sender: 'bot' }]);
 
             if (nextQuestion.type === 'file') {
                 setTimeout(() => fileInputRef.current?.click(), 300);
@@ -404,82 +391,149 @@ const InsuranceIOS = () => {
         const q = questions[currentQuestionIndex];
         const currentInput = inputValue.trim();
 
-        // Handle language selection
+        // Validation
         if (q.field === 'language') {
-            if (currentInput === '1' || currentInput === '2') {
-                const selectedLanguage = currentInput === '1' ? 'en' : 'hi';
-                const languageName = selectedLanguage === 'en' ? 'English' : 'हिंदी';
-
-                setLanguage(selectedLanguage);
-                setMessages(prev => [
-                    ...prev,
-                    { text: languageName, sender: 'user' },
-                    {
-                        text: questions[1].text[selectedLanguage],
-                        sender: 'bot'
-                    }
-                ]);
-                setInputValue('');
-                setCurrentQuestionIndex(1);
-                return;
-            } else {
+            if (currentInput !== '1' && currentInput !== '2') {
                 setError('Please type 1 or 2 / कृपया 1 या 2 टाइप करें');
                 return;
             }
         }
-
         if (!q.optional && !currentInput) {
             setError(language === 'hi' ? 'यह फ़ील्ड आवश्यक है' : 'This field is required');
             return;
         }
-
         setError('');
 
-        // Handle form data updates
         const isFormField = (field: keyof FormData | 'language' | 'weightmentSlip'): field is keyof FormData => {
             return field !== 'language' && field !== 'weightmentSlip';
         };
 
+        // Handle Language
+        if (q.field === 'language') {
+            const selectedLanguage = currentInput === '1' ? 'en' : 'hi';
+            setLanguage(selectedLanguage);
+            if (editingMessageIndex !== null) {
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[editingMessageIndex!] = { ...newMsgs[editingMessageIndex!], text: selectedLanguage === 'en' ? 'English' : 'हिंदी' };
+                    return newMsgs;
+                });
+                setEditingMessageIndex(null);
+                setInputValue('');
+                if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+                return;
+            } else {
+                setMessages(prev => [
+                    ...prev,
+                    { text: selectedLanguage === 'en' ? 'English' : 'हिंदी', sender: 'user', field: 'language' },
+                    { text: questions[1].text[selectedLanguage], sender: 'bot' }
+                ]);
+                setInputValue('');
+                setCurrentQuestionIndex(1);
+                return;
+            }
+        }
+
+        // Store Data
         if (isFormField(q.field)) {
-            const valueToStore = (q.type === 'number' && currentInput)
-                ? parseFloat(currentInput)
-                : currentInput;
+            const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
             setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
         }
 
-        setMessages(prev => [...prev, { text: currentInput, sender: 'user' }]);
-        setInputValue('');
-        goToNextQuestion();
+        // Handle Editing vs Normal
+        if (editingMessageIndex !== null) {
+            setMessages(prev => {
+                const newMsgs = [...prev];
+                newMsgs[editingMessageIndex!] = { ...newMsgs[editingMessageIndex!], text: currentInput };
+                return newMsgs;
+            });
+            setEditingMessageIndex(null);
+            setInputValue('');
+            if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+        } else {
+            setMessages(prev => [...prev, { text: currentInput, sender: 'user', field: q.field }]);
+            setInputValue('');
+            goToNextQuestion();
+        }
     };
 
+    // --- Image Handling ---
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = () => {
+                setImageSrc(reader.result as string);
+                setIsCropping(true);
+                setIsCropperReady(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
-        // Update state (for UI display if needed later)
-        setWeightmentSlip(file);
+    const handleRotate = () => {
+        const cropper = cropperRef.current?.cropper;
+        if (cropper) {
+            cropper.rotate(90);
+        }
+    };
 
-        setMessages(prev => [...prev, { text: `📎 ${file.name}`, sender: 'user' }]);
+    const handleCropComplete = () => {
+        const cropper = cropperRef.current?.cropper;
+        if (!cropper) return;
+
+        const canvas = cropper.getCroppedCanvas();
+        if (!canvas) {
+            console.error("Canvas was null");
+            return;
+        }
+
+        canvas.toBlob(async (blob: Blob | null) => {
+            if (!blob) return;
+            const croppedFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+            setWeightmentSlip(croppedFile);
+            setIsCropping(false);
+
+            if (editingMessageIndex !== null) {
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[editingMessageIndex!] = {
+                        ...newMsgs[editingMessageIndex!],
+                        text: `📎 ${croppedFile.name} (Edited)`
+                    };
+                    return newMsgs;
+                });
+                setEditingMessageIndex(null);
+                if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+            }
+        }, 'image/jpeg');
+    };
+
+    const handleFileSubmit = async () => {
+        if (!weightmentSlip) return;
+
+        setMessages(prev => [...prev, {
+            text: `📎 ${weightmentSlip.name}`,
+            sender: 'user',
+            field: 'weightmentSlip'
+        }]);
 
         setMessages(prev => [
             ...prev,
             {
-                text: language === 'hi'
-                    ? 'सबमिट किया जा रहा है...'
-                    : 'Submitting...',
+                text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...',
                 sender: 'bot'
             }
         ]);
 
-        await submitInsuranceForm(file);
+        await submitInsuranceForm(weightmentSlip);
     };
-
-    // ... (previous code remains the same)
 
     return (
         <div
             ref={viewportRef}
-            className="fixed top-0 left-0 right-0 flex flex-col bg-gray-50 overflow-hidden"
+            className="fixed top-0 left-0 right-0 flex flex-col bg-[#efeae2] overflow-hidden"
             style={{
                 height: viewportHeight,
                 WebkitOverflowScrolling: 'touch',
@@ -488,7 +542,7 @@ const InsuranceIOS = () => {
                 transform: 'translateZ(0)'
             }}
         >
-            {/* WhatsApp Header - Fixed Height */}
+            {/* Header */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <button
@@ -509,12 +563,72 @@ const InsuranceIOS = () => {
                 </div>
             </div>
 
+            {/* --- CROPPER OVERLAY (Absolute over everything) --- */}
+            {isCropping && imageSrc && (
+                <div className="absolute inset-0 z-50 bg-black flex flex-col">
+                    <div className="flex-1 w-full relative min-h-0 bg-black">
+                        <Cropper
+                            src={imageSrc}
+                            style={{ height: '100%', width: '100%' }}
+                            ref={cropperRef}
+                            initialAspectRatio={NaN}
+                            guides={true}
+                            viewMode={1}
+                            dragMode="move"
+                            responsive={true}
+                            autoCropArea={0.9}
+                            checkOrientation={false}
+                            background={false}
+                            ready={() => setIsCropperReady(true)}
+                            minCropBoxHeight={10}
+                            minCropBoxWidth={10}
+                        />
+                    </div>
+
+                    <div className="w-full bg-black/90 p-4 pb-8 flex justify-between items-center px-6 shrink-0 z-50">
+                        <button
+                            type="button"
+                            onClick={() => { setIsCropping(false); setImageSrc(null); setWeightmentSlip(null); }}
+                            className="flex flex-col items-center text-red-500 gap-1"
+                        >
+                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                <XMarkIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Cancel</span>
+                        </button>
+
+                        {/* <button
+                            type="button"
+                            onClick={handleRotate}
+                            className="flex flex-col items-center text-white gap-1"
+                        >
+                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                <ArrowPathIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Rotate</span>
+                        </button> */}
+
+                        <button
+                            type="button"
+                            onClick={handleCropComplete}
+                            disabled={!isCropperReady}
+                            className={`flex flex-col items-center gap-1 transition-opacity ${isCropperReady ? 'opacity-100 text-[#25D366]' : 'opacity-50 text-gray-500'}`}
+                        >
+                            <div className={`p-2 rounded-full bg-gray-800 border ${isCropperReady ? 'border-[#25D366]' : 'border-gray-500'} hover:bg-gray-700`}>
+                                <CheckIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Done</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* CHAT CONTAINER */}
             <div
-                className="flex-1 overflow-y-auto p-4 space-y-4"
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
                 style={{
                     backgroundImage: 'url("/images/whatsapp-bg.png")',
-                    backgroundSize: 'contain',
+                    backgroundSize: 'cover',
                     backgroundAttachment: 'fixed',
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehavior: 'contain',
@@ -528,13 +642,29 @@ const InsuranceIOS = () => {
                         key={index}
                         className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                        <div
-                            className={`max-w-[80%] rounded-lg p-3 text-black ${message.sender === 'user'
-                                ? 'bg-green-100 rounded-tr-none'
-                                : 'bg-white rounded-tl-none'
-                                }`}
-                        >
-                            <p className="whitespace-pre-line">{message.text}</p>
+                        <div className="flex items-center gap-2 max-w-[80%]">
+                            {/* Pencil Icon for User Messages */}
+                            {message.sender === 'user' && message.field && !isSubmitting && (
+                                <button
+                                    onClick={() => handleEdit(message.field as string)}
+                                    className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === index
+                                            ? 'bg-[#128C7E] text-white'
+                                            : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
+                                        }`}
+                                    title="Edit"
+                                >
+                                    <PencilSquareIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </button>
+                            )}
+
+                            <div
+                                className={`rounded-lg px-3 py-2 text-sm shadow-sm ${message.sender === 'user'
+                                    ? 'bg-[#dcf8c6] rounded-br-none text-black'
+                                    : 'bg-white rounded-bl-none text-black'
+                                    } ${editingMessageIndex === index ? 'ring-2 ring-[#128C7E]' : ''}`}
+                            >
+                                <p className="whitespace-pre-line leading-relaxed">{message.text}</p>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -543,70 +673,117 @@ const InsuranceIOS = () => {
 
             {/* INPUT AREA */}
             <div
-                className="border-t bg-white p-3 flex-none"
+                className="border-t bg-[#f0f0f0] p-2 flex-none"
                 style={{
-                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
-                    paddingLeft: 'max(env(safe-area-inset-left, 0px), 12px)',
-                    paddingRight: 'max(env(safe-area-inset-right, 0px), 12px)'
+                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                    paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
+                    paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)'
                 }}
             >
-                <form onSubmit={handleSubmit} className="flex items-center space-x-2">
-                    <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`p-2 rounded-full ${isFileInput ? 'text-green-600' : 'text-gray-400'}`}
-                        disabled={!isFileInput || isSubmitting}
-                    >
-                        <PaperClipIcon className="w-6 h-6" />
-                    </button>
+                {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
 
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept="image/*,application/pdf"
-                        onChange={handleFileChange}
-                        disabled={!isFileInput || isSubmitting}
-                    />
+                {isFileInput ? (
+                    <div className="flex justify-center w-full">
+                        {(!weightmentSlip || editingMessageIndex !== null) ? (
+                            <>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`bg-[#25D366] text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
+                                >
+                                    <PaperClipIcon className="w-5 h-5" />
+                                    <span>
+                                        {language === 'hi'
+                                            ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
+                                            : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
+                                    </span>
+                                </button>
+                            </>
+                        ) : (
+                            <div className="flex items-center gap-2 w-full">
+                                <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
+                                        <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                            {weightmentSlip.name}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setWeightmentSlip(null)}
+                                        className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
 
-                    <div className="flex-1 relative">
-                        <input
-                            ref={textInputRef}
-                            type={currentQuestion.type === 'number' ? 'number' : 'text'}
-                            step={currentQuestion.step}
-                            value={inputValue}
-                            onChange={e => setInputValue(e.target.value)}
-                            className="w-full border rounded-full px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-[16px] text-black"
-                            style={{ WebkitAppearance: 'none' }}
-                            inputMode={currentQuestion.type === 'number' ? 'decimal' : 'text'}
-                            placeholder={
-                                currentQuestion.type === 'number'
-                                    ? language === 'hi'
-                                        ? 'संख्या दर्ज करें...'
-                                        : 'Enter a number...'
-                                    : language === 'hi'
-                                        ? 'अपना उत्तर टाइप करें...'
-                                        : 'Type your answer...'
-                            }
-                            disabled={isFileInput || isSubmitting}
-                        />
+                                <button
+                                    onClick={handleFileSubmit}
+                                    disabled={isSubmitting}
+                                    className="bg-[#25D366] p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm"
+                                >
+                                    <ArrowUpIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                        )}
                     </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+                        {isSelectInput && currentQuestion.options ? (
+                            <select
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                className={`flex-1 rounded-full px-4 py-2 text-sm focus:outline-none bg-white text-black border border-gray-200 appearance-none ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
+                                disabled={isSubmitting}
+                            >
+                                <option value="">{language === 'hi' ? 'चुनें...' : 'Select...'}</option>
+                                {currentQuestion.options.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                        {opt}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="flex-1 relative">
+                                <input
+                                    ref={textInputRef}
+                                    type={currentQuestion.type === 'number' ? 'number' : 'text'}
+                                    step={currentQuestion.step}
+                                    value={inputValue}
+                                    onChange={e => setInputValue(e.target.value)}
+                                    className={`w-full border rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-green-500 text-sm text-black ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
+                                    style={{ WebkitAppearance: 'none' }}
+                                    inputMode={currentQuestion.type === 'number' ? 'decimal' : 'text'}
+                                    placeholder={
+                                        editingMessageIndex !== null
+                                            ? (language === 'hi' ? 'यहाँ एडिट करें...' : 'Edit here...')
+                                            : (currentQuestion.type === 'number'
+                                                ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
+                                                : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...'))
+                                    }
+                                    disabled={isFileInput || isSubmitting}
+                                />
+                            </div>
+                        )}
 
-                    <button
-                        type="submit"
-                        disabled={isSubmitting || (!inputValue.trim() && !isFileInput)}
-                        className="p-2 bg-green-600 text-white rounded-full disabled:opacity-50"
-                    >
-                        <ArrowUpIcon className="w-6 h-6" />
-                    </button>
-                </form>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || (!inputValue.trim() && !isSelectInput)}
+                            className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-[40px] flex items-center justify-center ${editingMessageIndex !== null
+                                    ? 'bg-[#128C7E] hover:bg-[#0e6b5e]'
+                                    : 'bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50'
+                                }`}
+                        >
+                            <ArrowUpIcon className="w-5 h-5" />
+                        </button>
+                    </form>
+                )}
             </div>
-
-            {error && (
-                <div className="fixed bottom-4 left-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                    {error}
-                </div>
-            )}
         </div>
     );
 };

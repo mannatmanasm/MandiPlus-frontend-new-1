@@ -2,18 +2,44 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+// 1. Import useAuth
+import { useAuth } from "@/features/auth/context/AuthContext";
 
 const LandingPage = () => {
   const router = useRouter();
+  // 2. Get user and loading state
+  const { user, loading } = useAuth();
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push("/login");
-    }, 2000);
+    // A. If still loading the token from localStorage, do nothing yet
+    if (loading) return;
 
-    // Cleanup the timer if the component unmounts before 2 seconds
-    return () => clearTimeout(timer);
-  }, [router]);
+    // B. If user exists, redirect to /home IMMEDIATELY
+    console.log("User:", user, "Loading:", loading);
+    if (user) {
+      router.replace("/home"); // Use replace to prevent back-button issues
+    }
+    // C. Only if NO user exists, proceed with your existing timeout logic
+    else {
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 2000);
 
+      return () => clearTimeout(timer);
+    }
+  }, [user, loading, router]);
+
+  // 3. Optional: Show a loading spinner instead of the splash screen if we are about to redirect
+  // This prevents the "flash" of the landing page for logged-in users.
+  if (loading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-12 h-12 border-4 border-[#4309ac] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // --- ORIGINAL CONTENT (Only shown if user is NOT logged in) ---
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 relative">
       {/* Phone-style Card */}

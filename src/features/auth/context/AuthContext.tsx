@@ -1,14 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { getCurrentUser, logout as logoutApi, setAuthToken } from "@/features/auth/api"; 
+import { getCurrentUser, logout as logoutApi, setAuthToken } from "@/features/auth/api";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
     user: any;
     loading: boolean;
     login: (token: string, userData?: any) => void;
-    logout: () => Promise<void>;
+    logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -18,89 +18,116 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    // Inside AuthProvider component...
+    // --- 1. Initialize Auth State (Runs once on new tab load) ---
+    useEffect(() => {
+        const initAuth = async () => {
+            console.log("🔄 [AuthContext] Initializing: Checking localStorage..."); // LOG 1
 
-    const login = async (token: string, userData?: any) => {
-        // 1. Set Token & Headers immediately
-        localStorage.setItem('accessToken', token);
-        setAuthToken(token);
-
-        let finalUser = userData;
-
-        // 2. If user data is missing, fetch it from the backend
-        if (!finalUser) {
             try {
-                console.log("User data missing in login response, fetching profile...");
-                finalUser = await getCurrentUser();
+                // 1. Get data from LocalStorage
+                const storedToken = localStorage.getItem('accessToken');
+                const storedUser = localStorage.getItem('user');
+
+                if (storedToken) {
+                    console.log("✅ [AuthContext] Token found in storage."); // LOG 2
+
+                    // 2. CRITICAL: Restore API Header immediately
+                    setAuthToken(storedToken);
+
+                    // 3. Restore User Data
+                    if (storedUser) {
+                        const parsedUser = JSON.parse(storedUser);
+                        console.log("👤 [AuthContext] User data restored:", parsedUser); // LOG 3
+                        setUser(parsedUser);
+                    } else {
+                        console.warn("⚠️ [AuthContext] Token exists but User data is missing."); // LOG 4
+                    }
+                } else {
+                    console.log("❌ [AuthContext] No token found in storage."); // LOG 5
+                }
             } catch (error) {
-                console.error("Failed to fetch user profile on login", error);
-            }
-        }
-
-        // 3. Update State & Storage
-        if (finalUser) {
-            localStorage.setItem('user', JSON.stringify(finalUser));
-            setUser(finalUser);
-            console.log("Login State Updated. User:", finalUser);
-
-            // 4. Redirect to Home
-            router.push("/home");
-        } else {
-            console.error("Login failed: Unable to retrieve user details.");
-        }
-    };
-
-    const loadUser = async () => {
-        try {
-            // Check if token exists first to avoid unnecessary API calls
-            const token = localStorage.getItem('accessToken');
-            if (!token) {
-                setLoading(false);
-                return;
-            }
-
-            // Re-set headers on refresh
-            setAuthToken(token);
-
-            const userData = await getCurrentUser();
-            if (userData) {
-                setUser(userData);
-                localStorage.setItem('user', JSON.stringify(userData));
-            } else {
-                setUser(null);
+                console.error("🚨 [AuthContext] Error restoring session:", error);
+                // If data is corrupted, clear it
                 localStorage.removeItem('user');
                 localStorage.removeItem('accessToken');
+                setAuthToken(null);
+            } finally {
+                // Finish loading regardless of success/failure so app renders
+                console.log("🏁 [AuthContext] Loading finished. Rendering app."); // LOG 6
+                setLoading(false);
             }
-        } catch (error) {
-            console.error("Failed to load user", error);
-            setUser(null);
-            localStorage.removeItem('user');
-            localStorage.removeItem('accessToken');
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
 
-    useEffect(() => {
-        loadUser();
+        initAuth();
     }, []);
 
-    const logout = async () => {
-        try {
-            await logoutApi();
-        } catch (error) {
-            console.error("Logout failed", error);
-        } finally {
-            setUser(null);
-            localStorage.removeItem('user');
-            localStorage.removeItem('accessToken');
-            setAuthToken(null); // Clear axios headers
-            router.push("/");
+    // --- 2. Listen for Login/Logout in other tabs (Sync state) ---
+    useEffect(() => {
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key === 'accessToken') {
+                console.log("🔄 [AuthContext] Storage event detected (Cross-tab sync)"); // LOG 7
+
+                if (event.newValue) {
+                    // Another tab logged in
+                    console.log("📥 [AuthContext] syncing login from another tab");
+                    setAuthToken(event.newValue);
+                    const newUser = localStorage.getItem('user');
+                    if (newUser) setUser(JSON.parse(newUser));
+                } else {
+                    // Another tab logged out
+                    console.log("📤 [AuthContext] syncing logout from another tab");
+                    setAuthToken(null);
+                    setUser(null);
+                    router.push("/");
+                }
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [router]);
+
+    // --- Actions ---
+
+    const login = (token: string, userData?: any) => {
+        console.log("🔑 [AuthContext] Login action called"); // LOG 8
+
+        // 1. Save to Storage
+        localStorage.setItem('accessToken', token);
+        if (userData) {
+            localStorage.setItem('user', JSON.stringify(userData));
         }
+
+        // 2. Update State
+        setUser(userData);
+
+        // 3. Set API Header
+        setAuthToken(token);
+
+        // 4. Redirect
+        console.log("🚀 [AuthContext] Redirecting to /home"); // LOG 9
+        router.push("/home");
+    };
+
+    const logout = () => {
+        console.log("👋 [AuthContext] Logout action called"); // LOG 10
+
+        // 1. Clear local data first for speed
+        localStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
+
+        // 2. Update State
+        setUser(null);
+        setAuthToken(null);
+
+        // 3. Redirect
+        router.push("/");
+
+        // 4. Notify server (optional, non-blocking)
+        logoutApi().catch((err) => console.error("Logout API failed", err));
     };
 
     return (
-        // 2. Add 'login' to the value object
         <AuthContext.Provider value={{ user, loading, login, logout }}>
             {!loading && children}
         </AuthContext.Provider>

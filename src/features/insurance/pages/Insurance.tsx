@@ -2,8 +2,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
-import { ArrowUpIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import {
+    ArrowUpIcon,
+    PaperClipIcon,
+    PencilSquareIcon,
+    CheckIcon,
+    XMarkIcon,
+    ArrowPathIcon,
+    TrashIcon
+} from '@heroicons/react/24/outline';
+import Cropper, { ReactCropperElement } from 'react-cropper'; // Added ReactCropperElement for type safety
+import "cropperjs/dist/cropper.css";
 import { createInsuranceForm } from '../api';
 
 // --- Types ---
@@ -30,15 +39,17 @@ interface QuestionText {
 
 interface Question {
     field: keyof FormData | 'language' | 'weightmentSlip';
-    type: 'text' | 'number' | 'language' | 'file';
+    type: 'text' | 'number' | 'language' | 'file' | 'select';
     text: QuestionText;
     optional?: boolean;
     step?: string;
+    options?: string[];
 }
 
 interface Message {
     text: string;
     sender: 'bot' | 'user';
+    field?: keyof FormData | 'language' | 'weightmentSlip';
 }
 
 // --- Constants ---
@@ -68,14 +79,6 @@ const questions: Question[] = [
             hi: "भेजने वाले का पता"
         }
     },
-    // {
-    //     field: 'placeOfSupply',
-    //     type: 'text',
-    //     text: {
-    //         en: "Kahan Tak",
-    //         hi: "माल कहाँ जाएगा"
-    //     }
-    // },
     {
         field: 'buyerName',
         type: 'text',
@@ -100,14 +103,6 @@ const questions: Question[] = [
             hi: "आइटम का नाम"
         }
     },
-    // {
-    //     field: 'hsn',
-    //     type: 'text',
-    //     text: {
-    //         en: "HSN Code",
-    //         hi: "HSN कोड"
-    //     }
-    // },
     {
         field: 'quantity',
         type: 'number',
@@ -136,7 +131,8 @@ const questions: Question[] = [
     },
     {
         field: 'notes',
-        type: 'text',
+        type: 'select',
+        options: ['Cash', 'Commission'],
         optional: true,
         text: {
             en: "Cash ya Commission",
@@ -155,7 +151,7 @@ const questions: Question[] = [
 ];
 
 const Insurance = () => {
-    const router = useRouter(); // Changed from useNavigate
+    const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textInputRef = useRef<HTMLInputElement>(null);
@@ -186,18 +182,24 @@ const Insurance = () => {
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
     const [viewportHeight, setViewportHeight] = useState<string>('100vh');
+    const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
+    const [resumeQuestionIndex, setResumeQuestionIndex] = useState<number | null>(null);
 
-    // Handle viewport height changes (mobile keyboard)
+    // --- Cropper State ---
+    const [imageSrc, setImageSrc] = useState<string | null>(null);
+    const [isCropping, setIsCropping] = useState(false);
+
+    // FIX 1: Use specific ReactCropperElement type for the Ref
+    const cropperRef = useRef<ReactCropperElement>(null);
+    const [isCropperReady, setIsCropperReady] = useState(false);
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
-
         const updateHeight = () => {
             const height = window.visualViewport?.height || window.innerHeight;
             setViewportHeight(`${height}px`);
         };
-
         updateHeight();
-
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', updateHeight);
             return () => window.visualViewport?.removeEventListener('resize', updateHeight);
@@ -211,54 +213,38 @@ const Insurance = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    /* ========================= SUBMIT ========================= */
     const submitInsuranceForm = async (fileArgument: File | null = null) => {
         if (isSubmitting) return;
         setIsSubmitting(true);
 
-        setMessages(prev => [
-            ...prev,
-            { text: 'Submitting details...', sender: 'bot' },
-        ]);
+        setMessages(prev => [...prev, { text: 'Submitting details...', sender: 'bot' }]);
 
         try {
             const submitData = new FormData();
-
-            // Add user ID from localStorage if available
             const userData = localStorage.getItem('user');
             if (userData) {
                 try {
                     const user = JSON.parse(userData);
-                    if (user.id) {
-                        submitData.append('userId', user.id);
-                    }
-                } catch (e) {
-                    console.error('Error parsing user data from localStorage', e);
-                }
+                    if (user.id) submitData.append('userId', user.id);
+                } catch (e) { console.error(e); }
             }
 
-            // --- 1. GENERATED FIELDS ---
             submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
-            submitData.append('placeOfSupply', formData.supplierAddress || 'State');//Made place of supply same as supplier address
+            submitData.append('placeOfSupply', formData.supplierAddress || 'State');
 
-            // --- 2. ARRAY FIELDS (Use [] suffix) ---
             const supAddr = formData.supplierAddress || 'Unknown Address';
             submitData.append('supplierAddress[]', supAddr);
-
             const buyAddr = formData.buyerAddress || 'Unknown Address';
             submitData.append('billToAddress[]', buyAddr);
             submitData.append('shipToAddress[]', buyAddr);
 
             const prodName = formData.itemName || 'Item';
             submitData.append('productName', prodName);
-
-            // --- 3. STRING FIELDS ---
             submitData.append('supplierName', formData.supplierName || 'Unknown Supplier');
             submitData.append('billToName', formData.buyerName || 'Unknown Buyer');
             submitData.append('shipToName', formData.buyerName || 'Unknown Buyer');
 
-            // --- 4. NUMERIC FIELDS ---
             const qty = formData.quantity ? Number(formData.quantity) : 0;
             const rate = formData.rate ? Number(formData.rate) : 0;
             const amount = qty * rate;
@@ -267,7 +253,6 @@ const Insurance = () => {
             submitData.append('rate', String(rate));
             submitData.append('amount', String(amount));
 
-            // --- 5. OPTIONAL FIELDS ---
             if (formData.vehicleNumber) {
                 submitData.append('vehicleNumber', formData.vehicleNumber);
                 submitData.append('truckNumber', formData.vehicleNumber);
@@ -275,98 +260,76 @@ const Insurance = () => {
             if (formData.hsn) submitData.append('hsnCode', formData.hsn);
             if (formData.notes) submitData.append('weighmentSlipNote', formData.notes);
 
-            // --- 6. FILE UPLOAD ---
             const finalFile = fileArgument || weightmentSlip;
             if (finalFile) {
                 submitData.append('weighmentSlips', finalFile);
             }
 
-            // Call API with proper error handling
-            let invoice;
-            try {
-                invoice = await createInsuranceForm(submitData);
-            } catch (error) {
-                console.error('Error creating invoice:', error);
-                throw new Error('Failed to create invoice. Please try again.');
-            }
-
-            // --- FIX: Correctly Read Response ---
-            // The backend might return 'pdfUrl' (camelCase) or 'pdfURL'. check both.
+            const invoice = await createInsuranceForm(submitData);
             const rawPdfUrl = invoice.pdfUrl || invoice.pdfURL;
 
-            setMessages(prev => [
-                ...prev,
-                { text: 'Success! Invoice created.', sender: 'bot' }
-            ]);
+            setMessages(prev => [...prev, { text: 'Success! Invoice created.', sender: 'bot' }]);
 
             if (rawPdfUrl) {
-                // If it's a Cloudinary link, use it directly. If local, add prefix.
-                const finalLink = rawPdfUrl.startsWith('http')
-                    ? rawPdfUrl
-                    : `http://localhost:3000${rawPdfUrl}`;
-
+                const finalLink = rawPdfUrl.startsWith('http') ? rawPdfUrl : `http://localhost:3000${rawPdfUrl}`;
                 window.location.href = finalLink;
             } else {
-                // PDF is generating in background (Async)
-                setMessages(prev => [
-                    ...prev,
-                    { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }
-                ]);
-                setTimeout(() => {
-                    router.push("/home");
-
-
-                }, 2000);
+                setMessages(prev => [...prev, { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }]);
+                setTimeout(() => router.push("/home"), 2000);
             }
 
         } catch (err: any) {
             console.error(err);
             let errorMsg = 'Submission failed.';
-            if (err.message) {
-                if (Array.isArray(err.message)) {
-                    errorMsg = err.message.join(', ');
-                } else {
-                    errorMsg = err.message;
-                }
-            }
-            setMessages(prev => [
-                ...prev,
-                { text: errorMsg, sender: 'bot' },
-            ]);
+            if (err.message) errorMsg = Array.isArray(err.message) ? err.message.join(', ') : err.message;
+            setMessages(prev => [...prev, { text: errorMsg, sender: 'bot' }]);
             setIsSubmitting(false);
         }
     };
 
-    /* ========================= FLOW ========================= */
+    const handleEdit = (fieldToEdit: string) => {
+        const questionIndex = questions.findIndex(q => q.field === fieldToEdit);
+        const messageIndex = messages.findIndex(m => m.field === fieldToEdit);
+        if (questionIndex === -1 || messageIndex === -1) return;
+
+        if (editingMessageIndex === null) {
+            setResumeQuestionIndex(currentQuestionIndex);
+        }
+
+        setEditingMessageIndex(messageIndex);
+        setCurrentQuestionIndex(questionIndex);
+
+        if (fieldToEdit === 'weightmentSlip') {
+            setWeightmentSlip(null);
+        }
+
+        if (fieldToEdit === 'language') {
+            setInputValue(language === 'en' ? '1' : '2');
+        } else if (fieldToEdit !== 'weightmentSlip') {
+            const val = formData[fieldToEdit as keyof FormData];
+            setInputValue(val ? String(val) : '');
+        }
+
+        setTimeout(() => textInputRef.current?.focus(), 100);
+    };
+
     const getQuestionText = (question: Question) => {
         return language ? question.text[language] : question.text.en;
     };
 
     const goToNextQuestion = () => {
         const currentQuestion = questions[currentQuestionIndex];
-
-        // Skip itemName and hsn questions as they have default values
         let nextIndex = currentQuestionIndex + 1;
-        if (currentQuestion.field === 'buyerAddress') {
-            // After buyerAddress, skip to quantity
-            nextIndex = questions.findIndex(q => q.field === 'quantity');
 
-            // Add auto-filled values to messages
-            setMessages(prev => [
-                ...prev,
-                { text: 'Tender Coconut', sender: 'user' },
-                // { text: getQuestionText(questions[questions.findIndex(q => q.field === 'hsn')]), sender: 'bot' },
-                // { text: '08011910', sender: 'user' }
-            ]);
+        if (currentQuestion.field === 'buyerAddress') {
+            nextIndex = questions.findIndex(q => q.field === 'quantity');
+            setMessages(prev => [...prev, { text: 'Tender Coconut', sender: 'user', field: 'itemName' }]);
         }
 
         if (nextIndex < questions.length) {
             setCurrentQuestionIndex(nextIndex);
             const nextQuestion = questions[nextIndex];
-            setMessages(prev => [...prev, {
-                text: getQuestionText(nextQuestion),
-                sender: 'bot'
-            }]);
+            setMessages(prev => [...prev, { text: getQuestionText(nextQuestion), sender: 'bot' }]);
 
             if (nextQuestion.type === 'file') {
                 setTimeout(() => fileInputRef.current?.click(), 300);
@@ -381,88 +344,167 @@ const Insurance = () => {
         const q = questions[currentQuestionIndex];
         const currentInput = inputValue.trim();
 
-        // Handle language selection
         if (q.field === 'language') {
-            if (currentInput === '1' || currentInput === '2') {
-                const selectedLanguage = currentInput === '1' ? 'en' : 'hi';
-                const languageName = selectedLanguage === 'en' ? 'English' : 'हिंदी';
-
-                setLanguage(selectedLanguage);
-                setMessages(prev => [
-                    ...prev,
-                    { text: languageName, sender: 'user' },
-                    {
-                        text: questions[1].text[selectedLanguage],
-                        sender: 'bot'
-                    }
-                ]);
-                setInputValue('');
-                setCurrentQuestionIndex(1);
-                return;
-            } else {
+            if (currentInput !== '1' && currentInput !== '2') {
                 setError('Please type 1 or 2 / कृपया 1 या 2 टाइप करें');
                 return;
             }
         }
-
         if (!q.optional && !currentInput) {
             setError(language === 'hi' ? 'यह फ़ील्ड आवश्यक है' : 'This field is required');
             return;
         }
-
         setError('');
 
-        // Handle form data updates excluding special fields like 'language' or 'weightmentSlip'
-        // which are not directly inside the formData state object in the same way
-        // Add this type guard function at the top level of your component
         const isFormField = (field: keyof FormData | 'language' | 'weightmentSlip'): field is keyof FormData => {
             return field !== 'language' && field !== 'weightmentSlip';
         };
 
-        // Then in your handleSubmit function:
+        if (q.field === 'language') {
+            const selectedLanguage = currentInput === '1' ? 'en' : 'hi';
+            setLanguage(selectedLanguage);
+            if (editingMessageIndex !== null) {
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[editingMessageIndex] = { ...newMsgs[editingMessageIndex], text: selectedLanguage === 'en' ? 'English' : 'हिंदी' };
+                    return newMsgs;
+                });
+                setEditingMessageIndex(null);
+                setInputValue('');
+                if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+                setResumeQuestionIndex(null);
+                return;
+            } else {
+                setMessages(prev => [
+                    ...prev,
+                    { text: selectedLanguage === 'en' ? 'English' : 'हिंदी', sender: 'user', field: 'language' },
+                    { text: questions[1].text[selectedLanguage], sender: 'bot' }
+                ]);
+                setInputValue('');
+                setCurrentQuestionIndex(1);
+                return;
+            }
+        }
+
         if (isFormField(q.field)) {
-            const valueToStore = (q.type === 'number' && currentInput)
-                ? parseFloat(currentInput)
-                : currentInput;
+            const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
             setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
         }
 
-        setMessages(prev => [...prev, { text: currentInput, sender: 'user' }]);
-        setInputValue('');
-        goToNextQuestion();
+        if (editingMessageIndex !== null) {
+            setMessages(prev => {
+                const newMsgs = [...prev];
+                newMsgs[editingMessageIndex] = { ...newMsgs[editingMessageIndex], text: currentInput };
+                return newMsgs;
+            });
+            setEditingMessageIndex(null);
+            setInputValue('');
+            if (resumeQuestionIndex !== null) {
+                setCurrentQuestionIndex(resumeQuestionIndex);
+                setResumeQuestionIndex(null);
+            }
+        } else {
+            setMessages(prev => [...prev, { text: currentInput, sender: 'user', field: q.field }]);
+            setInputValue('');
+            goToNextQuestion();
+        }
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = () => {
+                setImageSrc(reader.result as string);
+                setIsCropping(true);
+                setIsCropperReady(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
-        // Update state (for UI display if needed later)
-        setWeightmentSlip(file);
+    // --- FIX: Access cropper via ref.current.cropper ---
+    const handleCropComplete = () => {
+        // 1. Get the underlying cropper instance from the ref
+        const cropper = cropperRef.current?.cropper;
 
-        setMessages(prev => [...prev, { text: `📎 ${file.name}`, sender: 'user' }]);
+        if (!cropper) {
+            console.error("Cropper instance not found");
+            return;
+        }
+
+        // 2. Get the canvas
+        const canvas = cropper.getCroppedCanvas();
+
+        if (!canvas) {
+            console.error("Canvas was null");
+            return;
+        }
+
+        // 3. Convert to blob
+        canvas.toBlob(async (blob: Blob | null) => {
+            if (!blob) return;
+
+            const croppedFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+            setWeightmentSlip(croppedFile);
+            setIsCropping(false);
+
+            if (editingMessageIndex !== null) {
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[editingMessageIndex] = {
+                        ...newMsgs[editingMessageIndex],
+                        text: `📎 ${croppedFile.name} (Edited)`
+                    };
+                    return newMsgs;
+                });
+                setEditingMessageIndex(null);
+                if (resumeQuestionIndex !== null) {
+                    setCurrentQuestionIndex(resumeQuestionIndex);
+                    setResumeQuestionIndex(null);
+                }
+            }
+        }, 'image/jpeg');
+    };
+
+    const handleFileSubmit = async () => {
+        if (!weightmentSlip) return;
+
+        setMessages(prev => [...prev, {
+            text: `📎 ${weightmentSlip.name}`,
+            sender: 'user',
+            field: 'weightmentSlip'
+        }]);
 
         setMessages(prev => [
             ...prev,
             {
-                text: language === 'hi'
-                    ? 'सबमिट किया जा रहा है...'
-                    : 'Submitting...',
+                text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...',
                 sender: 'bot'
             }
         ]);
 
-        await submitInsuranceForm(file);
+        await submitInsuranceForm(weightmentSlip);
     };
 
-    const currentQuestion = questions[currentQuestionIndex];
+    const handleRotate = () => {
+        const cropper = cropperRef.current?.cropper;
+        if (cropper) {
+            cropper.rotate(90);
+        }
+    };
+
+    const currentQuestion = questions[currentQuestionIndex] || questions[questions.length - 1];
     const isFileInput = currentQuestion.type === 'file';
+    const isSelectInput = currentQuestion.type === 'select';
 
     return (
         <div
             className="flex flex-col bg-[#efeae2] overflow-hidden fixed inset-0"
             style={{ height: viewportHeight } as React.CSSProperties}
         >
-            {/* WhatsApp Header - Fixed Height */}
+            {/* Header */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <button
@@ -483,7 +525,68 @@ const Insurance = () => {
                 </div>
             </div>
 
-            {/* Chat Area - Flexible, Scrollable */}
+            {/* --- CROPPER OVERLAY --- */}
+            {isCropping && imageSrc && (
+                <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                    <div className="flex-1 w-full relative min-h-0 bg-black">
+                        {/* FIX: Use ref={cropperRef} instead of onInitialized */}
+                        <Cropper
+                            src={imageSrc}
+                            style={{ height: '100%', width: '100%' }}
+                            ref={cropperRef}
+                            initialAspectRatio={NaN}
+                            guides={true}
+                            viewMode={1}
+                            dragMode="move"
+                            responsive={true}
+                            autoCropArea={0.9}
+                            checkOrientation={false}
+                            background={false}
+                            ready={() => setIsCropperReady(true)}
+                            minCropBoxHeight={10}
+                            minCropBoxWidth={10}
+                        />
+                    </div>
+
+                    <div className="w-full bg-black/90 p-4 pb-8 flex justify-between items-center px-6 shrink-0 z-50">
+                        <button
+                            type="button"
+                            onClick={() => { setIsCropping(false); setImageSrc(null); setWeightmentSlip(null); }}
+                            className="flex flex-col items-center text-red-500 gap-1"
+                        >
+                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                <XMarkIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Cancel</span>
+                        </button>
+
+                        {/* <button
+                            type="button"
+                            onClick={handleRotate}
+                            className="flex flex-col items-center text-white gap-1"
+                        >
+                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                <ArrowPathIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Rotate</span>
+                        </button> */}
+
+                        <button
+                            type="button"
+                            onClick={handleCropComplete}
+                            disabled={!isCropperReady}
+                            className={`flex flex-col items-center gap-1 transition-opacity ${isCropperReady ? 'opacity-100 text-[#25D366]' : 'opacity-50 text-gray-500'}`}
+                        >
+                            <div className={`p-2 rounded-full bg-gray-800 border ${isCropperReady ? 'border-[#25D366]' : 'border-gray-500'} hover:bg-gray-700`}>
+                                <CheckIcon className="w-6 h-6" />
+                            </div>
+                            <span className="text-xs">Done</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Chat Area */}
             <div
                 ref={chatContainerRef}
                 className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
@@ -498,26 +601,41 @@ const Insurance = () => {
             >
                 {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                            className={`max-w-[85%] sm:max-w-[75%] px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm ${m.sender === 'user'
-                                ? 'bg-[#dcf8c6] rounded-br-none text-black' // Added text-black
-                                : 'bg-white rounded-bl-none text-black'     // Added text-black
-                                }`}
-                        >
-                            <div className="whitespace-pre-line leading-relaxed">{m.text}</div>
+                        <div className="flex items-center gap-2 max-w-[85%] sm:max-w-[75%]">
+                            {m.sender === 'user' && m.field && !isSubmitting && (
+                                <button
+                                    onClick={() => handleEdit(m.field as string)}
+                                    className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === i
+                                            ? 'bg-[#128C7E] text-white'
+                                            : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
+                                        }`}
+                                    title="Edit"
+                                >
+                                    <PencilSquareIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </button>
+                            )}
+
+                            <div
+                                className={`px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm ${m.sender === 'user'
+                                    ? 'bg-[#dcf8c6] rounded-br-none text-black'
+                                    : 'bg-white rounded-bl-none text-black'
+                                    } ${editingMessageIndex === i ? 'ring-2 ring-[#128C7E]' : ''}`}
+                            >
+                                <div className="whitespace-pre-line leading-relaxed">{m.text}</div>
+                            </div>
                         </div>
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar - Fixed Height */}
+            {/* Input Bar */}
             <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0">
                 {error && <p className="text-red-500 text-xs mb-1 px-1">{error}</p>}
 
                 {isFileInput ? (
-                    <div className="flex justify-center">
-                        {!weightmentSlip ? (
+                    <div className="flex justify-center w-full">
+                        {(!weightmentSlip || editingMessageIndex !== null) ? (
                             <>
                                 <input
                                     type="file"
@@ -528,46 +646,91 @@ const Insurance = () => {
                                 />
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-xs sm:text-sm"
+                                    className={`bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-xs sm:text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
                                 >
                                     <PaperClipIcon className="w-4 h-4" />
-                                    <span className="hidden sm:inline">{language === 'hi' ? 'वजन पर्ची अपलोड करें' : 'Upload weightment slip'}</span>
-                                    <span className="sm:hidden">{language === 'hi' ? 'अपलोड' : 'Upload'}</span>
+                                    <span className="hidden sm:inline">
+                                        {language === 'hi'
+                                            ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
+                                            : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
+                                    </span>
+                                    <span className="sm:hidden">
+                                        {language === 'hi' ? 'अपलोड' : 'Upload'}
+                                    </span>
                                 </button>
                             </>
                         ) : (
-                            <button
-                                className="bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 opacity-50 cursor-not-allowed text-xs sm:text-sm"
-                                disabled
-                            >
-                                {language === 'hi' ? 'सबमिट हो रहा है...' : 'Submitting...'}
-                            </button>
+                            <div className="flex items-center gap-2 w-full">
+                                <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
+                                        <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                            {weightmentSlip.name}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setWeightmentSlip(null)}
+                                        className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <button
+                                    onClick={handleFileSubmit}
+                                    disabled={isSubmitting}
+                                    className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center"
+                                >
+                                    <ArrowUpIcon className="h-5 w-5 text-white" />
+                                </button>
+                            </div>
                         )}
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                        <input
-                            ref={textInputRef}
-                            type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder={currentQuestion.type === 'number'
-                                ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
-                                : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...')}
-                            className="flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200"
-                            disabled={isSubmitting}
-                            step={currentQuestion.step}
-                            onFocus={() => {
-                                // Scroll to bottom when input is focused
-                                setTimeout(() => {
-                                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                                }, 300);
-                            }}
-                        />
+                        {isSelectInput && currentQuestion.options ? (
+                            <select
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                className={`flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200 appearance-none ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
+                                disabled={isSubmitting}
+                            >
+                                <option value="">{language === 'hi' ? 'चुनें...' : 'Select...'}</option>
+                                {currentQuestion.options.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                        {opt}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                ref={textInputRef}
+                                type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                placeholder={
+                                    editingMessageIndex !== null
+                                        ? (language === 'hi' ? 'यहाँ एडिट करें...' : 'Edit here...')
+                                        : (currentQuestion.type === 'number'
+                                            ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
+                                            : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...'))
+                                }
+                                className={`flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200 ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
+                                disabled={isSubmitting}
+                                step={currentQuestion.step}
+                                onFocus={() => {
+                                    setTimeout(() => {
+                                        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                    }, 300);
+                                }}
+                            />
+                        )}
+
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center"
+                            className={`p-2 sm:p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center ${editingMessageIndex !== null ? 'bg-[#128C7E] hover:bg-[#0e6b5e]' : 'bg-[#25D366] hover:bg-[#20bd5a]'
+                                }`}
                         >
                             <ArrowUpIcon className="h-5 w-5 text-white" />
                         </button>
