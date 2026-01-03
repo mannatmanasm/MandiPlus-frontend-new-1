@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 
 // 1. BACKEND BASE URL 
 // (Updated to port 3000 for NestJS, based on your previous logs)
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 // Helper to remove '/api' if we need the root URL for images/PDFs
 export const getBackendURL = () => {
