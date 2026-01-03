@@ -11,7 +11,7 @@ import {
     ArrowPathIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
-import Cropper, { ReactCropperElement } from 'react-cropper'; // Added ReactCropperElement for type safety
+import Cropper, { ReactCropperElement } from 'react-cropper';
 import "cropperjs/dist/cropper.css";
 import { createInsuranceForm } from '../api';
 
@@ -52,6 +52,24 @@ interface Message {
     sender: 'bot' | 'user';
     field?: keyof FormData | 'language' | 'weightmentSlip';
 }
+
+// --- Data: Items and HSN Codes ---
+const itemsData = [
+    { name: "Tender Coconut", hsn: "08011910" },
+    { name: "Kiwi", hsn: "08109020" },
+    { name: "Mango", hsn: "08045020" },
+    { name: "Papaya (Papita)", hsn: "08072000" },
+    { name: "Pomegranate (Anar)", hsn: "08109010" },
+    { name: "Oranges", hsn: "08051000" },
+    { name: "Kinnow", hsn: "08052100" },
+    { name: "Guava (Amrood)", hsn: "08045030" },
+    { name: "Muskmelon (Kastoori Tarbooj)", hsn: "08071910" },
+    { name: "Watermelon (Tarbooj)", hsn: "08071100" },
+    { name: "Tomato", hsn: "07020000" },
+    { name: "Onion", hsn: "07031010" },
+    { name: "Potato", hsn: "07019000" },
+    { name: "Ginger (Fresh)", hsn: "07030010" }
+];
 
 // --- Constants ---
 
@@ -98,10 +116,11 @@ const questions: Question[] = [
     },
     {
         field: 'itemName',
-        type: 'text',
+        type: 'select', // Changed to select
+        options: itemsData.map(item => item.name), // Populated options
         text: {
-            en: "Item Kya hai",
-            hi: "आइटम का नाम"
+            en: "Select Item",
+            hi: "आइटम चुनें"
         }
     },
     {
@@ -172,8 +191,8 @@ const Insurance = () => {
         placeOfSupply: '',
         buyerName: '',
         buyerAddress: '',
-        itemName: 'Tender Coconut',
-        hsn: '08011910',
+        itemName: '', // Removed default
+        hsn: '',      // Removed default
         quantity: '',
         rate: '',
         vehicleNumber: '',
@@ -332,10 +351,7 @@ const Insurance = () => {
         const currentQuestion = questions[currentQuestionIndex];
         let nextIndex = currentQuestionIndex + 1;
 
-        if (currentQuestion.field === 'buyerAddress') {
-            nextIndex = questions.findIndex(q => q.field === 'quantity');
-            setMessages(prev => [...prev, { text: 'Tender Coconut', sender: 'user', field: 'itemName' }]);
-        }
+        // REMOVED: Auto-skip logic for itemName/Tender Coconut
 
         if (nextIndex < questions.length) {
             setCurrentQuestionIndex(nextIndex);
@@ -399,7 +415,15 @@ const Insurance = () => {
 
         if (isFormField(q.field)) {
             const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
-            setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
+
+            // Logic to auto-select HSN when Item Name is selected
+            if (q.field === 'itemName') {
+                const selectedItem = itemsData.find(item => item.name === currentInput);
+                const hsnCode = selectedItem ? selectedItem.hsn : '';
+                setFormData(prev => ({ ...prev, itemName: currentInput, hsn: hsnCode }));
+            } else {
+                setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
+            }
         }
 
         if (editingMessageIndex !== null) {
@@ -571,17 +595,6 @@ const Insurance = () => {
                             <span className="text-xs">Cancel</span>
                         </button>
 
-                        {/* <button
-                            type="button"
-                            onClick={handleRotate}
-                            className="flex flex-col items-center text-white gap-1"
-                        >
-                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
-                                <ArrowPathIcon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs">Rotate</span>
-                        </button> */}
-
                         <button
                             type="button"
                             onClick={handleCropComplete}
@@ -617,8 +630,8 @@ const Insurance = () => {
                                 <button
                                     onClick={() => handleEdit(m.field as string)}
                                     className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === i
-                                            ? 'bg-[#128C7E] text-white'
-                                            : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
+                                        ? 'bg-[#128C7E] text-white'
+                                        : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
                                         }`}
                                     title="Edit"
                                 >
