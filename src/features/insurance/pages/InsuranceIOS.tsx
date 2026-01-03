@@ -8,7 +8,6 @@ import {
     PencilSquareIcon,
     CheckIcon,
     XMarkIcon,
-    ArrowPathIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
 import Cropper, { ReactCropperElement } from 'react-cropper';
@@ -28,7 +27,7 @@ interface FormData {
     quantity: string | number;
     rate: string | number;
     vehicleNumber: string;
-    ownerName: string; // Added ownerName
+    ownerName: string;
     cashOrCommission: string;
     notes: string;
 }
@@ -82,100 +81,28 @@ const questions: Question[] = [
             hi: "भाषा चुनें \nType 1 - English\nType 2 - Hindi"
         }
     },
-    {
-        field: 'supplierName',
-        type: 'text',
-        text: {
-            en: "Supplier Kaun",
-            hi: "माल भेजने वाला"
-        }
-    },
-    {
-        field: 'supplierAddress',
-        type: 'text',
-        text: {
-            en: "Place of Supply/Supply kahan se",
-            hi: "भेजने वाले का पता"
-        }
-    },
-    {
-        field: 'buyerName',
-        type: 'text',
-        text: {
-            en: "Party Ka Naam",
-            hi: "पार्टी का नाम"
-        }
-    },
-    {
-        field: 'buyerAddress',
-        type: 'text',
-        text: {
-            en: "Party Address",
-            hi: "पार्टी का पता"
-        }
-    },
+    { field: 'supplierName', type: 'text', text: { en: "Supplier Kaun", hi: "माल भेजने वाला" } },
+    { field: 'supplierAddress', type: 'text', text: { en: "Place of Supply/Supply kahan se", hi: "भेजने वाले का पता" } },
+    { field: 'buyerName', type: 'text', text: { en: "Party Ka Naam", hi: "पार्टी का नाम" } },
+    { field: 'buyerAddress', type: 'text', text: { en: "Party Address", hi: "पार्टी का पता" } },
     {
         field: 'itemName',
-        type: 'select', // Changed to select
-        options: itemsData.map(item => item.name),
-        text: {
-            en: "Select Item",
-            hi: "आइटम चुनें"
-        }
+        type: 'select', // Ensure type is select
+        options: itemsData.map(item => item.name), // Populate options from itemsData
+        text: { en: "Select Item", hi: "आइटम चुनें" }
     },
-    {
-        field: 'quantity',
-        type: 'number',
-        step: "0.01",
-        text: {
-            en: "Kitna Maal",
-            hi: "कुल मात्रा/QTY"
-        }
-    },
-    {
-        field: 'rate',
-        type: 'number',
-        step: "0.01",
-        text: {
-            en: "Kya Bhaav Lgaya",
-            hi: "रेट/भाव"
-        }
-    },
-    {
-        field: 'vehicleNumber',
-        type: 'text',
-        text: {
-            en: "Gaadi No.",
-            hi: "गाड़ी नंबर"
-        }
-    },
-    {
-        field: 'ownerName', // Added Owner Name Question
-        type: 'text',
-        text: {
-            en: "Transporter Ka Naam",
-            hi: "ट्रांसपोर्टर का नाम"
-        }
-    },
+    { field: 'quantity', type: 'number', step: "0.01", text: { en: "Kitna Maal", hi: "कुल मात्रा/QTY" } },
+    { field: 'rate', type: 'number', step: "0.01", text: { en: "Kya Bhaav Lgaya", hi: "रेट/भाव" } },
+    { field: 'vehicleNumber', type: 'text', text: { en: "Gaadi No.", hi: "गाड़ी नंबर" } },
+    { field: 'ownerName', type: 'text', text: { en: "Transporter Ka Naam", hi: "ट्रांसपोर्टर का नाम" } },
     {
         field: 'notes',
-        type: 'select',
+        type: 'select', // Ensure type is select
         options: ['Cash', 'Commission'],
         optional: true,
-        text: {
-            en: "Cash ya Commission",
-            hi: "नकद या कमीशन"
-        }
+        text: { en: "Cash ya Commission", hi: "नकद या कमीशन" }
     },
-    {
-        field: 'weightmentSlip',
-        type: 'file',
-        optional: true,
-        text: {
-            en: "Kanta Parchi Photo",
-            hi: "कांटा पर्ची"
-        }
-    },
+    { field: 'weightmentSlip', type: 'file', optional: true, text: { en: "Kanta Parchi Photo", hi: "कांटा पर्ची" } },
 ];
 
 /* ---------------- COMPONENT ---------------- */
@@ -193,12 +120,12 @@ const InsuranceIOS = () => {
         placeOfSupply: '',
         buyerName: '',
         buyerAddress: '',
-        itemName: '', // Removed default
-        hsn: '',      // Removed default
+        itemName: '',
+        hsn: '',
         quantity: '',
         rate: '',
         vehicleNumber: '',
-        ownerName: '', // Added to state
+        ownerName: '',
         cashOrCommission: '',
         notes: '',
     });
@@ -229,14 +156,12 @@ const InsuranceIOS = () => {
     const cropperRef = useRef<ReactCropperElement>(null);
     const [isCropperReady, setIsCropperReady] = useState(false);
 
-    // --- Viewport Logic (Preserved) ---
+    // --- Viewport Logic ---
     useEffect(() => {
-        if (typeof window === 'undefined') return; // !('visualViewport' in window) removed for broader compat, check inside
-
+        if (typeof window === 'undefined') return;
         if (!window.visualViewport) return;
 
         const visualViewport = window.visualViewport;
-
         const updateViewport = () => {
             const newHeight = visualViewport.height;
             const offsetTop = visualViewport.offsetTop;
@@ -244,7 +169,6 @@ const InsuranceIOS = () => {
             if (Math.abs(newHeight - lastHeight.current) > 1) {
                 lastHeight.current = newHeight;
                 setViewportHeight(`${newHeight}px`);
-
                 const keyboardVisible = newHeight < window.innerHeight * 0.7;
                 if (keyboardVisible !== isKeyboardVisible) {
                     setIsKeyboardVisible(keyboardVisible);
@@ -255,7 +179,6 @@ const InsuranceIOS = () => {
                     }
                 }
             }
-
             if (viewportRef.current) {
                 viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
             }
@@ -284,18 +207,12 @@ const InsuranceIOS = () => {
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-
-    // --- Helpers ---
-    const currentQuestion = questions[currentQuestionIndex];
-    const isFileInput = currentQuestion.type === 'file';
-    const isSelectInput = currentQuestion.type === 'select';
+    }, [messages, currentQuestionIndex]);
 
     // --- API Submission ---
     const submitInsuranceForm = async (fileArgument: File | null = null) => {
         if (isSubmitting) return;
         setIsSubmitting(true);
-
         setMessages(prev => [...prev, { text: 'Submitting details...', sender: 'bot' }]);
 
         try {
@@ -308,10 +225,8 @@ const InsuranceIOS = () => {
                 } catch (e) { console.error(e); }
             }
 
-            // submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
             submitData.append('placeOfSupply', formData.supplierAddress || 'State');
-
             const supAddr = formData.supplierAddress || 'Unknown Address';
             submitData.append('supplierAddress[]', supAddr);
             const buyAddr = formData.buyerAddress || 'Unknown Address';
@@ -336,7 +251,6 @@ const InsuranceIOS = () => {
                 submitData.append('vehicleNumber', formData.vehicleNumber);
                 submitData.append('truckNumber', formData.vehicleNumber);
             }
-            // Added Owner Name
             submitData.append('ownerName', formData.ownerName || 'Unknown Owner');
 
             if (formData.hsn) submitData.append('hsnCode', formData.hsn);
@@ -403,11 +317,6 @@ const InsuranceIOS = () => {
         const currentQuestion = questions[currentQuestionIndex];
         let nextIndex = currentQuestionIndex + 1;
 
-        if (currentQuestion.field === 'buyerAddress') {
-            nextIndex = questions.findIndex(q => q.field === 'quantity');
-            setMessages(prev => [...prev, { text: 'Tender Coconut', sender: 'user', field: 'itemName' }]);
-        }
-
         if (nextIndex < questions.length) {
             setCurrentQuestionIndex(nextIndex);
             const nextQuestion = questions[nextIndex];
@@ -421,10 +330,10 @@ const InsuranceIOS = () => {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    // Unified helper to process Input (Text or Button Click)
+    const processInput = (value: string) => {
         const q = questions[currentQuestionIndex];
-        const currentInput = inputValue.trim();
+        const currentInput = value.trim();
 
         // Validation
         if (q.field === 'language') {
@@ -456,6 +365,7 @@ const InsuranceIOS = () => {
                 setEditingMessageIndex(null);
                 setInputValue('');
                 if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+                setResumeQuestionIndex(null);
                 return;
             } else {
                 setMessages(prev => [
@@ -473,7 +383,7 @@ const InsuranceIOS = () => {
         if (isFormField(q.field)) {
             const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
 
-            // Logic to auto-select HSN
+            // Logic to auto-select HSN if ItemName is selected
             if (q.field === 'itemName') {
                 const selectedItem = itemsData.find(item => item.name === currentInput);
                 const hsnCode = selectedItem ? selectedItem.hsn : '';
@@ -492,12 +402,25 @@ const InsuranceIOS = () => {
             });
             setEditingMessageIndex(null);
             setInputValue('');
-            if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
+            if (resumeQuestionIndex !== null) {
+                setCurrentQuestionIndex(resumeQuestionIndex);
+                setResumeQuestionIndex(null);
+            }
         } else {
             setMessages(prev => [...prev, { text: currentInput, sender: 'user', field: q.field }]);
             setInputValue('');
             goToNextQuestion();
         }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        processInput(inputValue);
+    };
+
+    // Handler for Chips/Buttons
+    const handleOptionSelect = (opt: string) => {
+        processInput(opt);
     };
 
     // --- Image Handling ---
@@ -515,22 +438,11 @@ const InsuranceIOS = () => {
         }
     };
 
-    const handleRotate = () => {
-        const cropper = cropperRef.current?.cropper;
-        if (cropper) {
-            cropper.rotate(90);
-        }
-    };
-
     const handleCropComplete = () => {
         const cropper = cropperRef.current?.cropper;
         if (!cropper) return;
-
         const canvas = cropper.getCroppedCanvas();
-        if (!canvas) {
-            console.error("Canvas was null");
-            return;
-        }
+        if (!canvas) return;
 
         canvas.toBlob(async (blob: Blob | null) => {
             if (!blob) return;
@@ -564,14 +476,15 @@ const InsuranceIOS = () => {
 
         setMessages(prev => [
             ...prev,
-            {
-                text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...',
-                sender: 'bot'
-            }
+            { text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...', sender: 'bot' }
         ]);
 
         await submitInsuranceForm(weightmentSlip);
     };
+
+    const currentQuestion = questions[currentQuestionIndex] || questions[questions.length - 1];
+    const isFileInput = currentQuestion.type === 'file';
+    const isSelectInput = currentQuestion.type === 'select';
 
     return (
         <div
@@ -588,10 +501,7 @@ const InsuranceIOS = () => {
             {/* Header */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
-                    <button
-                        onClick={() => router.back()}
-                        className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E] transition-colors touch-manipulation"
-                    >
+                    <button onClick={() => router.back()} className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E] transition-colors touch-manipulation">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
@@ -606,7 +516,7 @@ const InsuranceIOS = () => {
                 </div>
             </div>
 
-            {/* --- CROPPER OVERLAY (Absolute over everything) --- */}
+            {/* --- CROPPER OVERLAY --- */}
             {isCropping && imageSrc && (
                 <div className="absolute inset-0 z-50 bg-black flex flex-col">
                     <div className="flex-1 w-full relative min-h-0 bg-black">
@@ -627,7 +537,6 @@ const InsuranceIOS = () => {
                             minCropBoxWidth={10}
                         />
                     </div>
-
                     <div className="w-full bg-black/90 p-4 pb-8 flex justify-between items-center px-6 shrink-0 z-50">
                         <button
                             type="button"
@@ -639,18 +548,6 @@ const InsuranceIOS = () => {
                             </div>
                             <span className="text-xs">Cancel</span>
                         </button>
-
-                        {/* <button
-                            type="button"
-                            onClick={handleRotate}
-                            className="flex flex-col items-center text-white gap-1"
-                        >
-                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
-                                <ArrowPathIcon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs">Rotate</span>
-                        </button> */}
-
                         <button
                             type="button"
                             onClick={handleCropComplete}
@@ -681,25 +578,20 @@ const InsuranceIOS = () => {
                 ref={chatContainerRef}
             >
                 {messages.map((message, index) => (
-                    <div
-                        key={index}
-                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
+                    <div key={index} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className="flex items-center gap-2 max-w-[80%]">
-                            {/* Pencil Icon for User Messages */}
                             {message.sender === 'user' && message.field && !isSubmitting && (
                                 <button
                                     onClick={() => handleEdit(message.field as string)}
                                     className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === index
-                                            ? 'bg-[#128C7E] text-white'
-                                            : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
+                                        ? 'bg-[#128C7E] text-white'
+                                        : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
                                         }`}
                                     title="Edit"
                                 >
                                     <PencilSquareIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                                 </button>
                             )}
-
                             <div
                                 className={`rounded-lg px-3 py-2 text-sm shadow-sm ${message.sender === 'user'
                                     ? 'bg-[#dcf8c6] rounded-br-none text-black'
@@ -711,87 +603,97 @@ const InsuranceIOS = () => {
                         </div>
                     </div>
                 ))}
+
+                {/* --- RENDER DROPDOWN OPTIONS IN CHAT --- */}
+                {/* Shows buttons for Item Name and Cash/Commission */}
+                {isSelectInput && !isSubmitting && !editingMessageIndex && currentQuestion.options && (
+                    <div className="flex justify-start w-full animate-in fade-in slide-in-from-bottom-2">
+                        <div className="w-[85%] sm:w-[75%]">
+                            <p className="text-[10px] text-gray-500 mb-1 ml-1 uppercase font-semibold tracking-wider">
+                                {language === 'hi' ? 'विकल्प चुनें' : 'Select an option'}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {currentQuestion.options.map((opt) => (
+                                    <button
+                                        key={opt}
+                                        onClick={() => handleOptionSelect(opt)}
+                                        className="bg-white border border-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm shadow-sm hover:bg-[#dcf8c6] hover:border-[#25D366] hover:text-black transition-all active:scale-95 text-left"
+                                    >
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div ref={messagesEndRef} />
             </div>
 
             {/* INPUT AREA */}
-            <div
-                className="border-t bg-[#f0f0f0] p-2 flex-none"
-                style={{
-                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
-                    paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
-                    paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)'
-                }}
-            >
-                {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
+            {/* Hidden if we are showing select buttons (unless editing) */}
+            {(!isSelectInput || editingMessageIndex !== null) && (
+                <div
+                    className="border-t bg-[#f0f0f0] p-2 flex-none"
+                    style={{
+                        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                        paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
+                        paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)'
+                    }}
+                >
+                    {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
 
-                {isFileInput ? (
-                    <div className="flex justify-center w-full">
-                        {(!weightmentSlip || editingMessageIndex !== null) ? (
-                            <>
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    accept="image/*"
-                                    className="hidden"
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`bg-[#25D366] text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
-                                >
-                                    <PaperClipIcon className="w-5 h-5" />
-                                    <span>
-                                        {language === 'hi'
-                                            ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
-                                            : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
-                                    </span>
-                                </button>
-                            </>
-                        ) : (
-                            <div className="flex items-center gap-2 w-full">
-                                <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
-                                        <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
-                                            {weightmentSlip.name}
+                    {isFileInput ? (
+                        <div className="flex justify-center w-full">
+                            {(!weightmentSlip || editingMessageIndex !== null) ? (
+                                <>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleFileChange}
+                                        accept="image/*"
+                                        className="hidden"
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className={`bg-[#25D366] text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
+                                    >
+                                        <PaperClipIcon className="w-5 h-5" />
+                                        <span>
+                                            {language === 'hi'
+                                                ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
+                                                : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
                                         </span>
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="flex items-center gap-2 w-full">
+                                    <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
+                                            <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                                {weightmentSlip.name}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setWeightmentSlip(null)}
+                                            className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
                                     </div>
                                     <button
-                                        onClick={() => setWeightmentSlip(null)}
-                                        className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                        onClick={handleFileSubmit}
+                                        disabled={isSubmitting}
+                                        className="bg-[#25D366] p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm"
                                     >
-                                        <TrashIcon className="w-4 h-4" />
+                                        <ArrowUpIcon className="h-5 w-5" />
                                     </button>
                                 </div>
-
-                                <button
-                                    onClick={handleFileSubmit}
-                                    disabled={isSubmitting}
-                                    className="bg-[#25D366] p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm"
-                                >
-                                    <ArrowUpIcon className="h-5 w-5" />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="flex items-center space-x-2">
-                        {isSelectInput && currentQuestion.options ? (
-                            <select
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                className={`flex-1 rounded-full px-4 py-2 text-sm focus:outline-none bg-white text-black border border-gray-200 appearance-none ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
-                                disabled={isSubmitting}
-                            >
-                                <option value="">{language === 'hi' ? 'चुनें...' : 'Select...'}</option>
-                                {currentQuestion.options.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                        {opt}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
+                            )}
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
                             <div className="flex-1 relative">
                                 <input
                                     ref={textInputRef}
@@ -812,21 +714,20 @@ const InsuranceIOS = () => {
                                     disabled={isFileInput || isSubmitting}
                                 />
                             </div>
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting || (!inputValue.trim() && !isSelectInput)}
-                            className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-[40px] flex items-center justify-center ${editingMessageIndex !== null
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || (!inputValue.trim() && !isSelectInput)}
+                                className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-[40px] flex items-center justify-center ${editingMessageIndex !== null
                                     ? 'bg-[#128C7E] hover:bg-[#0e6b5e]'
                                     : 'bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50'
-                                }`}
-                        >
-                            <ArrowUpIcon className="w-5 h-5" />
-                        </button>
-                    </form>
-                )}
-            </div>
+                                    }`}
+                            >
+                                <ArrowUpIcon className="w-5 h-5" />
+                            </button>
+                        </form>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

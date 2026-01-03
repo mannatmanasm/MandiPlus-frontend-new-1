@@ -8,7 +8,6 @@ import {
     PencilSquareIcon,
     CheckIcon,
     XMarkIcon,
-    ArrowPathIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
 import Cropper, { ReactCropperElement } from 'react-cropper';
@@ -16,7 +15,6 @@ import "cropperjs/dist/cropper.css";
 import { createInsuranceForm } from '../api';
 
 // --- Types ---
-
 interface FormData {
     supplierName: string;
     supplierAddress: string;
@@ -53,7 +51,7 @@ interface Message {
     field?: keyof FormData | 'language' | 'weightmentSlip';
 }
 
-// --- Data: Items and HSN Codes ---
+// --- Data ---
 const itemsData = [
     { name: "Tender Coconut", hsn: "08011910" },
     { name: "Kiwi", hsn: "08109020" },
@@ -72,7 +70,6 @@ const itemsData = [
 ];
 
 // --- Constants ---
-
 const questions: Question[] = [
     {
         field: 'language',
@@ -82,100 +79,28 @@ const questions: Question[] = [
             hi: "भाषा चुनें \nType 1 - English\nType 2 - Hindi"
         }
     },
-    {
-        field: 'supplierName',
-        type: 'text',
-        text: {
-            en: "Supplier Kaun",
-            hi: "माल भेजने वाला"
-        }
-    },
-    {
-        field: 'supplierAddress',
-        type: 'text',
-        text: {
-            en: "Place of Supply/Supply kahan se",
-            hi: "भेजने वाले का पता"
-        }
-    },
-    {
-        field: 'buyerName',
-        type: 'text',
-        text: {
-            en: "Party Ka Naam",
-            hi: "पार्टी का नाम"
-        }
-    },
-    {
-        field: 'buyerAddress',
-        type: 'text',
-        text: {
-            en: "Party Address",
-            hi: "पार्टी का पता"
-        }
-    },
+    { field: 'supplierName', type: 'text', text: { en: "Supplier Kaun", hi: "माल भेजने वाला" } },
+    { field: 'supplierAddress', type: 'text', text: { en: "Place of Supply/Supply kahan se", hi: "भेजने वाले का पता" } },
+    { field: 'buyerName', type: 'text', text: { en: "Party Ka Naam", hi: "पार्टी का नाम" } },
+    { field: 'buyerAddress', type: 'text', text: { en: "Party Address", hi: "पार्टी का पता" } },
     {
         field: 'itemName',
-        type: 'select', // Changed to select
-        options: itemsData.map(item => item.name), // Populated options
-        text: {
-            en: "Select Item",
-            hi: "आइटम चुनें"
-        }
+        type: 'select',
+        options: itemsData.map(item => item.name),
+        text: { en: "Select Item", hi: "आइटम चुनें" }
     },
-    {
-        field: 'quantity',
-        type: 'number',
-        step: "0.01",
-        text: {
-            en: "Kitna Maal",
-            hi: "कुल मात्रा/QTY"
-        }
-    },
-    {
-        field: 'rate',
-        type: 'number',
-        step: "0.01",
-        text: {
-            en: "Kya Bhaav Lgaya",
-            hi: "रेट/भाव"
-        }
-    },
-    {
-        field: 'vehicleNumber',
-        type: 'text',
-        text: {
-            en: "Gaadi No.",
-            hi: "गाड़ी नंबर"
-        }
-    },
-    {
-        field: 'ownerName',
-        type: 'text',
-        text: {
-            en: "Transporter Ka Naam",
-            hi: "ट्रांसपोर्टर का नाम"
-        }
-    },
+    { field: 'quantity', type: 'number', step: "0.01", text: { en: "Kitna Maal", hi: "कुल मात्रा/QTY" } },
+    { field: 'rate', type: 'number', step: "0.01", text: { en: "Kya Bhaav Lgaya", hi: "रेट/भाव" } },
+    { field: 'vehicleNumber', type: 'text', text: { en: "Gaadi No.", hi: "गाड़ी नंबर" } },
+    { field: 'ownerName', type: 'text', text: { en: "Transporter Ka Naam", hi: "ट्रांसपोर्टर का नाम" } },
     {
         field: 'notes',
         type: 'select',
         options: ['Cash', 'Commission'],
         optional: true,
-        text: {
-            en: "Cash ya Commission",
-            hi: "नकद या कमीशन"
-        }
+        text: { en: "Cash ya Commission", hi: "नकद या कमीशन" }
     },
-    {
-        field: 'weightmentSlip',
-        type: 'file',
-        optional: true,
-        text: {
-            en: "Kanta Parchi Photo",
-            hi: "कांटा पर्ची"
-        }
-    },
+    { field: 'weightmentSlip', type: 'file', optional: true, text: { en: "Kanta Parchi Photo", hi: "कांटा पर्ची" } },
 ];
 
 const Insurance = () => {
@@ -191,8 +116,8 @@ const Insurance = () => {
         placeOfSupply: '',
         buyerName: '',
         buyerAddress: '',
-        itemName: '', // Removed default
-        hsn: '',      // Removed default
+        itemName: '',
+        hsn: '',
         quantity: '',
         rate: '',
         vehicleNumber: '',
@@ -217,8 +142,6 @@ const Insurance = () => {
     // --- Cropper State ---
     const [imageSrc, setImageSrc] = useState<string | null>(null);
     const [isCropping, setIsCropping] = useState(false);
-
-    // FIX 1: Use specific ReactCropperElement type for the Ref
     const cropperRef = useRef<ReactCropperElement>(null);
     const [isCropperReady, setIsCropperReady] = useState(false);
 
@@ -240,12 +163,11 @@ const Insurance = () => {
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, currentQuestionIndex]);
 
     const submitInsuranceForm = async (fileArgument: File | null = null) => {
         if (isSubmitting) return;
         setIsSubmitting(true);
-
         setMessages(prev => [...prev, { text: 'Submitting details...', sender: 'bot' }]);
 
         try {
@@ -258,10 +180,8 @@ const Insurance = () => {
                 } catch (e) { console.error(e); }
             }
 
-            // submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
             submitData.append('placeOfSupply', formData.supplierAddress || 'State');
-
             const supAddr = formData.supplierAddress || 'Unknown Address';
             submitData.append('supplierAddress[]', supAddr);
             const buyAddr = formData.buyerAddress || 'Unknown Address';
@@ -351,8 +271,6 @@ const Insurance = () => {
         const currentQuestion = questions[currentQuestionIndex];
         let nextIndex = currentQuestionIndex + 1;
 
-        // REMOVED: Auto-skip logic for itemName/Tender Coconut
-
         if (nextIndex < questions.length) {
             setCurrentQuestionIndex(nextIndex);
             const nextQuestion = questions[nextIndex];
@@ -366,10 +284,10 @@ const Insurance = () => {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    // New helper to process all inputs (text or buttons)
+    const processInput = (value: string) => {
         const q = questions[currentQuestionIndex];
-        const currentInput = inputValue.trim();
+        const currentInput = value.trim();
 
         if (q.field === 'language') {
             if (currentInput !== '1' && currentInput !== '2') {
@@ -416,7 +334,6 @@ const Insurance = () => {
         if (isFormField(q.field)) {
             const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
 
-            // Logic to auto-select HSN when Item Name is selected
             if (q.field === 'itemName') {
                 const selectedItem = itemsData.find(item => item.name === currentInput);
                 const hsnCode = selectedItem ? selectedItem.hsn : '';
@@ -445,6 +362,16 @@ const Insurance = () => {
         }
     };
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        processInput(inputValue);
+    };
+
+    // Click handler for in-chat options
+    const handleOptionSelect = (opt: string) => {
+        processInput(opt);
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const file = e.target.files[0];
@@ -459,28 +386,14 @@ const Insurance = () => {
         }
     };
 
-    // --- FIX: Access cropper via ref.current.cropper ---
     const handleCropComplete = () => {
-        // 1. Get the underlying cropper instance from the ref
         const cropper = cropperRef.current?.cropper;
-
-        if (!cropper) {
-            console.error("Cropper instance not found");
-            return;
-        }
-
-        // 2. Get the canvas
+        if (!cropper) return;
         const canvas = cropper.getCroppedCanvas();
+        if (!canvas) return;
 
-        if (!canvas) {
-            console.error("Canvas was null");
-            return;
-        }
-
-        // 3. Convert to blob
         canvas.toBlob(async (blob: Blob | null) => {
             if (!blob) return;
-
             const croppedFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
             setWeightmentSlip(croppedFile);
             setIsCropping(false);
@@ -514,20 +427,10 @@ const Insurance = () => {
 
         setMessages(prev => [
             ...prev,
-            {
-                text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...',
-                sender: 'bot'
-            }
+            { text: language === 'hi' ? 'सबमिट किया जा रहा है...' : 'Submitting...', sender: 'bot' }
         ]);
 
         await submitInsuranceForm(weightmentSlip);
-    };
-
-    const handleRotate = () => {
-        const cropper = cropperRef.current?.cropper;
-        if (cropper) {
-            cropper.rotate(90);
-        }
     };
 
     const currentQuestion = questions[currentQuestionIndex] || questions[questions.length - 1];
@@ -542,10 +445,7 @@ const Insurance = () => {
             {/* Header */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
-                    <button
-                        onClick={() => router.push('/home')}
-                        className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E] transition-colors touch-manipulation"
-                    >
+                    <button onClick={() => router.push('/home')} className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E]">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
@@ -560,11 +460,10 @@ const Insurance = () => {
                 </div>
             </div>
 
-            {/* --- CROPPER OVERLAY --- */}
+            {/* Cropper Overlay */}
             {isCropping && imageSrc && (
                 <div className="fixed inset-0 z-50 bg-black flex flex-col">
                     <div className="flex-1 w-full relative min-h-0 bg-black">
-                        {/* FIX: Use ref={cropperRef} instead of onInitialized */}
                         <Cropper
                             src={imageSrc}
                             style={{ height: '100%', width: '100%' }}
@@ -582,7 +481,6 @@ const Insurance = () => {
                             minCropBoxWidth={10}
                         />
                     </div>
-
                     <div className="w-full bg-black/90 p-4 pb-8 flex justify-between items-center px-6 shrink-0 z-50">
                         <button
                             type="button"
@@ -594,7 +492,6 @@ const Insurance = () => {
                             </div>
                             <span className="text-xs">Cancel</span>
                         </button>
-
                         <button
                             type="button"
                             onClick={handleCropComplete}
@@ -638,7 +535,6 @@ const Insurance = () => {
                                     <PencilSquareIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                                 </button>
                             )}
-
                             <div
                                 className={`px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm ${m.sender === 'user'
                                     ? 'bg-[#dcf8c6] rounded-br-none text-black'
@@ -650,83 +546,93 @@ const Insurance = () => {
                         </div>
                     </div>
                 ))}
+
+                {/* --- RENDER DROPDOWN OPTIONS IN CHAT --- */}
+                {/* This section renders buttons (chips) when the current question is of type 'select' */}
+                {isSelectInput && !isSubmitting && !editingMessageIndex && currentQuestion.options && (
+                    <div className="flex justify-start w-full animate-in fade-in slide-in-from-bottom-2">
+                        <div className="w-[85%] sm:w-[75%]">
+                            <p className="text-[10px] text-gray-500 mb-1 ml-1 uppercase font-semibold tracking-wider">
+                                {language === 'hi' ? 'विकल्प चुनें' : 'Select an option'}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {currentQuestion.options.map((opt) => (
+                                    <button
+                                        key={opt}
+                                        onClick={() => handleOptionSelect(opt)}
+                                        className="bg-white border border-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm shadow-sm hover:bg-[#dcf8c6] hover:border-[#25D366] hover:text-black transition-all active:scale-95 text-left"
+                                    >
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div ref={messagesEndRef} />
             </div>
 
             {/* Input Bar */}
-            <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0">
-                {error && <p className="text-red-500 text-xs mb-1 px-1">{error}</p>}
+            {/* We hide this bar if we are in 'select' mode to force user to use chat buttons */}
+            {(!isSelectInput || editingMessageIndex !== null) && (
+                <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0">
+                    {error && <p className="text-red-500 text-xs mb-1 px-1">{error}</p>}
 
-                {isFileInput ? (
-                    <div className="flex justify-center w-full">
-                        {(!weightmentSlip || editingMessageIndex !== null) ? (
-                            <>
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    accept="image/*"
-                                    className="hidden"
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-xs sm:text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
-                                >
-                                    <PaperClipIcon className="w-4 h-4" />
-                                    <span className="hidden sm:inline">
-                                        {language === 'hi'
-                                            ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
-                                            : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
-                                    </span>
-                                    <span className="sm:hidden">
-                                        {language === 'hi' ? 'अपलोड' : 'Upload'}
-                                    </span>
-                                </button>
-                            </>
-                        ) : (
-                            <div className="flex items-center gap-2 w-full">
-                                <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
-                                        <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
-                                            {weightmentSlip.name}
+                    {isFileInput ? (
+                        <div className="flex justify-center w-full">
+                            {(!weightmentSlip || editingMessageIndex !== null) ? (
+                                <>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleFileChange}
+                                        accept="image/*"
+                                        className="hidden"
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className={`bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-xs sm:text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
+                                    >
+                                        <PaperClipIcon className="w-4 h-4" />
+                                        <span className="hidden sm:inline">
+                                            {language === 'hi'
+                                                ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
+                                                : (editingMessageIndex !== null ? 'Upload new slip' : 'Upload weightment slip')}
                                         </span>
+                                        <span className="sm:hidden">
+                                            {language === 'hi' ? 'अपलोड' : 'Upload'}
+                                        </span>
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="flex items-center gap-2 w-full">
+                                    <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
+                                            <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                                {weightmentSlip.name}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setWeightmentSlip(null)}
+                                            className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
                                     </div>
                                     <button
-                                        onClick={() => setWeightmentSlip(null)}
-                                        className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                        onClick={handleFileSubmit}
+                                        disabled={isSubmitting}
+                                        className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center"
                                     >
-                                        <TrashIcon className="w-4 h-4" />
+                                        <ArrowUpIcon className="h-5 w-5 text-white" />
                                     </button>
                                 </div>
-
-                                <button
-                                    onClick={handleFileSubmit}
-                                    disabled={isSubmitting}
-                                    className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center"
-                                >
-                                    <ArrowUpIcon className="h-5 w-5 text-white" />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                        {isSelectInput && currentQuestion.options ? (
-                            <select
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                className={`flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200 appearance-none ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
-                                disabled={isSubmitting}
-                            >
-                                <option value="">{language === 'hi' ? 'चुनें...' : 'Select...'}</option>
-                                {currentQuestion.options.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                        {opt}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
+                            )}
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="flex items-center gap-2">
                             <input
                                 ref={textInputRef}
                                 type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
@@ -748,19 +654,18 @@ const Insurance = () => {
                                     }, 300);
                                 }}
                             />
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className={`p-2 sm:p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center ${editingMessageIndex !== null ? 'bg-[#128C7E] hover:bg-[#0e6b5e]' : 'bg-[#25D366] hover:bg-[#20bd5a]'
-                                }`}
-                        >
-                            <ArrowUpIcon className="h-5 w-5 text-white" />
-                        </button>
-                    </form>
-                )}
-            </div>
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className={`p-2 sm:p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center ${editingMessageIndex !== null ? 'bg-[#128C7E] hover:bg-[#0e6b5e]' : 'bg-[#25D366] hover:bg-[#20bd5a]'
+                                    }`}
+                            >
+                                <ArrowUpIcon className="h-5 w-5 text-white" />
+                            </button>
+                        </form>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
