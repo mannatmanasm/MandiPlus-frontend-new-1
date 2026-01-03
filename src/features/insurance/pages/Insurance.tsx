@@ -28,6 +28,7 @@ interface FormData {
     quantity: string | number;
     rate: string | number;
     vehicleNumber: string;
+    ownerName: string;
     cashOrCommission: string;
     notes: string;
 }
@@ -130,6 +131,14 @@ const questions: Question[] = [
         }
     },
     {
+        field: 'ownerName',
+        type: 'text',
+        text: {
+            en: "Transporter Ka Naam",
+            hi: "ट्रांसपोर्टर का नाम"
+        }
+    },
+    {
         field: 'notes',
         type: 'select',
         options: ['Cash', 'Commission'],
@@ -168,6 +177,7 @@ const Insurance = () => {
         quantity: '',
         rate: '',
         vehicleNumber: '',
+        ownerName: '',
         cashOrCommission: '',
         notes: '',
     });
@@ -229,7 +239,7 @@ const Insurance = () => {
                 } catch (e) { console.error(e); }
             }
 
-            submitData.append('invoiceNumber', `INV-${Date.now()}`);
+            // submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
             submitData.append('placeOfSupply', formData.supplierAddress || 'State');
 
@@ -257,6 +267,7 @@ const Insurance = () => {
                 submitData.append('vehicleNumber', formData.vehicleNumber);
                 submitData.append('truckNumber', formData.vehicleNumber);
             }
+            submitData.append('ownerName', formData.ownerName || 'Unknown Owner');
             if (formData.hsn) submitData.append('hsnCode', formData.hsn);
             if (formData.notes) submitData.append('weighmentSlipNote', formData.notes);
 
