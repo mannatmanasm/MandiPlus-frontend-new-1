@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import {
     ArrowUpIcon,
     PaperClipIcon,
-    PencilSquareIcon, // Added
-    CheckIcon,        // Added
-    XMarkIcon,        // Added
-    ArrowPathIcon,    // Added
-    TrashIcon         // Added
+    PencilSquareIcon,
+    CheckIcon,
+    XMarkIcon,
+    ArrowPathIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
-import Cropper, { ReactCropperElement } from 'react-cropper'; // Import Cropper
-import "cropperjs/dist/cropper.css"; // Import CSS
+import Cropper, { ReactCropperElement } from 'react-cropper';
+import "cropperjs/dist/cropper.css";
 import { createInsuranceForm } from '../api';
 
 // --- Types ---
@@ -28,6 +28,7 @@ interface FormData {
     quantity: string | number;
     rate: string | number;
     vehicleNumber: string;
+    ownerName: string; // Added ownerName
     cashOrCommission: string;
     notes: string;
 }
@@ -39,18 +40,36 @@ interface QuestionText {
 
 interface Question {
     field: keyof FormData | 'language' | 'weightmentSlip';
-    type: 'text' | 'number' | 'language' | 'file' | 'select'; // Added 'select'
+    type: 'text' | 'number' | 'language' | 'file' | 'select';
     text: QuestionText;
     optional?: boolean;
     step?: string;
-    options?: string[]; // Added options
+    options?: string[];
 }
 
 interface Message {
     text: string;
     sender: 'bot' | 'user';
-    field?: keyof FormData | 'language' | 'weightmentSlip'; // Track field for editing
+    field?: keyof FormData | 'language' | 'weightmentSlip';
 }
+
+// --- Data: Items and HSN Codes ---
+const itemsData = [
+    { name: "Tender Coconut", hsn: "08011910" },
+    { name: "Kiwi", hsn: "08109020" },
+    { name: "Mango", hsn: "08045020" },
+    { name: "Papaya (Papita)", hsn: "08072000" },
+    { name: "Pomegranate (Anar)", hsn: "08109010" },
+    { name: "Oranges", hsn: "08051000" },
+    { name: "Kinnow", hsn: "08052100" },
+    { name: "Guava (Amrood)", hsn: "08045030" },
+    { name: "Muskmelon (Kastoori Tarbooj)", hsn: "08071910" },
+    { name: "Watermelon (Tarbooj)", hsn: "08071100" },
+    { name: "Tomato", hsn: "07020000" },
+    { name: "Onion", hsn: "07031010" },
+    { name: "Potato", hsn: "07019000" },
+    { name: "Ginger (Fresh)", hsn: "07030010" }
+];
 
 // --- Constants ---
 
@@ -97,10 +116,11 @@ const questions: Question[] = [
     },
     {
         field: 'itemName',
-        type: 'text',
+        type: 'select', // Changed to select
+        options: itemsData.map(item => item.name),
         text: {
-            en: "Item Kya hai",
-            hi: "आइटम का नाम"
+            en: "Select Item",
+            hi: "आइटम चुनें"
         }
     },
     {
@@ -130,8 +150,16 @@ const questions: Question[] = [
         }
     },
     {
+        field: 'ownerName', // Added Owner Name Question
+        type: 'text',
+        text: {
+            en: "Transporter Ka Naam",
+            hi: "ट्रांसपोर्टर का नाम"
+        }
+    },
+    {
         field: 'notes',
-        type: 'select', // Changed to Select
+        type: 'select',
         options: ['Cash', 'Commission'],
         optional: true,
         text: {
@@ -165,11 +193,12 @@ const InsuranceIOS = () => {
         placeOfSupply: '',
         buyerName: '',
         buyerAddress: '',
-        itemName: 'Tender Coconut',
-        hsn: '08011910',
+        itemName: '', // Removed default
+        hsn: '',      // Removed default
         quantity: '',
         rate: '',
         vehicleNumber: '',
+        ownerName: '', // Added to state
         cashOrCommission: '',
         notes: '',
     });
@@ -200,11 +229,13 @@ const InsuranceIOS = () => {
     const cropperRef = useRef<ReactCropperElement>(null);
     const [isCropperReady, setIsCropperReady] = useState(false);
 
-    // --- Viewport Logic (Preserved from your code) ---
+    // --- Viewport Logic (Preserved) ---
     useEffect(() => {
-        if (typeof window === 'undefined' || !('visualViewport' in window)) return;
+        if (typeof window === 'undefined') return; // !('visualViewport' in window) removed for broader compat, check inside
 
-        const visualViewport = window.visualViewport!;
+        if (!window.visualViewport) return;
+
+        const visualViewport = window.visualViewport;
 
         const updateViewport = () => {
             const newHeight = visualViewport.height;
@@ -277,7 +308,7 @@ const InsuranceIOS = () => {
                 } catch (e) { console.error(e); }
             }
 
-            submitData.append('invoiceNumber', `INV-${Date.now()}`);
+            // submitData.append('invoiceNumber', `INV-${Date.now()}`);
             submitData.append('invoiceDate', new Date().toISOString());
             submitData.append('placeOfSupply', formData.supplierAddress || 'State');
 
@@ -287,7 +318,8 @@ const InsuranceIOS = () => {
             submitData.append('billToAddress[]', buyAddr);
             submitData.append('shipToAddress[]', buyAddr);
 
-            submitData.append('productName', formData.itemName || 'Item');
+            const prodName = formData.itemName || 'Item';
+            submitData.append('productName', prodName);
             submitData.append('supplierName', formData.supplierName || 'Unknown Supplier');
             submitData.append('billToName', formData.buyerName || 'Unknown Buyer');
             submitData.append('shipToName', formData.buyerName || 'Unknown Buyer');
@@ -304,6 +336,9 @@ const InsuranceIOS = () => {
                 submitData.append('vehicleNumber', formData.vehicleNumber);
                 submitData.append('truckNumber', formData.vehicleNumber);
             }
+            // Added Owner Name
+            submitData.append('ownerName', formData.ownerName || 'Unknown Owner');
+
             if (formData.hsn) submitData.append('hsnCode', formData.hsn);
             if (formData.notes) submitData.append('weighmentSlipNote', formData.notes);
 
@@ -437,7 +472,15 @@ const InsuranceIOS = () => {
         // Store Data
         if (isFormField(q.field)) {
             const valueToStore = (q.type === 'number' && currentInput) ? parseFloat(currentInput) : currentInput;
-            setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
+
+            // Logic to auto-select HSN
+            if (q.field === 'itemName') {
+                const selectedItem = itemsData.find(item => item.name === currentInput);
+                const hsnCode = selectedItem ? selectedItem.hsn : '';
+                setFormData(prev => ({ ...prev, itemName: currentInput, hsn: hsnCode }));
+            } else {
+                setFormData(prev => ({ ...prev, [q.field]: valueToStore }));
+            }
         }
 
         // Handle Editing vs Normal
