@@ -1,185 +1,334 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowUpIcon } from '@heroicons/react/24/outline';
-import { trackVehicle } from '@/features/tracking/api'; 
+import { trackVehicle, TrackingData } from '@/features/tracking/api';
 
 // --- Types ---
 interface Message {
-    text: string;
-    sender: 'bot' | 'user';
-    isLocation?: boolean;
+  text: string;
+  sender: 'bot' | 'user';
+  isLocation?: boolean;
+  mapsUrl?: string;
+  status?: 'online' | 'offline' | 'unknown';
+  locationData?: TrackingData;
+  timestamp?: Date;
 }
 
 const TrackingPage = () => {
-    const router = useRouter();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-    // --- State ---
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            text: 'Please enter your vehicle number to track your delivery 🚚',
-            sender: 'bot'
-        }
+  // --- State ---
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      text: '👋 Hi! I can help you track your vehicle in real-time.\n\n🚚 Just enter your vehicle number below to get started!',
+      sender: 'bot',
+      timestamp: new Date(),
+    },
+  ]);
+  const [inputValue, setInputValue] = useState<string>('');
+
+  // --- Effects ---
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // --- Handlers ---
+  const handleSendMessage = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault();
+    if (!inputValue.trim() || isLoading) return;
+
+    // always lowercase vehicle number
+    const vehicleNum = inputValue.trim().toLowerCase();
+    setInputValue('');
+    setIsLoading(true);
+
+    setMessages(prev => [
+      ...prev,
+      { 
+        text: vehicleNum.toUpperCase(), 
+        sender: 'user',
+        timestamp: new Date(),
+      },
+      { 
+        text: '🔍 Searching for vehicle...', 
+        sender: 'bot',
+        timestamp: new Date(),
+      },
     ]);
-    const [inputValue, setInputValue] = useState<string>('');
-    const [isMounted, setIsMounted] = useState(false);
 
-    // --- Effects ---
+    try {
+      const response = await trackVehicle(vehicleNum);
+      const data: TrackingData = response.data;
 
-    // Handle hydration
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
+      const statusLabel =
+        data.status === 'online'
+          ? '🟢 Online'
+          : data.status === 'offline'
+          ? '🔴 Offline'
+          : '⚪ Unknown';
 
-    // Auto-scroll
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+      const lastSeenText = data.lastSeen
+        ? new Date(data.lastSeen).toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'N/A';
 
-    // --- Handlers ---
+      const hasLocation =
+        !!data.location &&
+        typeof data.location.lat === 'number' &&
+        typeof data.location.lng === 'number';
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inputValue.trim()) return;
+      const mapsUrl = hasLocation
+        ? `https://www.google.com/maps?q=${data.location!.lat},${data.location!.lng}`
+        : 'https://maps.google.com';
 
-        // 1. Add User Message
-        const vehicleNum = inputValue; // Capture value before clearing
-        setMessages(prev => [...prev, { text: vehicleNum, sender: 'user' }]);
-        setInputValue('');
+      // Create a more attractive message
+      const locationMsg = `📍 **Vehicle Found!**\n\n🚚 **Vehicle:** ${data.vehicleNumber || vehicleNum.toUpperCase()}\n${statusLabel}\n⏰ **Last Seen:** ${lastSeenText}${hasLocation && data.location ? `\n\n📍 **Location:** ${('placeName' in data.location && data.location.placeName) ? (data.location as any).placeName : `${data.location.lat.toFixed(5)}, ${data.location.lng.toFixed(5)}`}${typeof data.location.speed === 'number' ? `\n🚗 **Speed:** ${data.location.speed} km/h` : ''}` : ''}`;
 
-        // 2. Add "Searching..." bot message
-        setMessages(prev => [...prev, { text: 'Searching for vehicle...', sender: 'bot' }]);
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        {
+          text: locationMsg,
+          sender: 'bot',
+          isLocation: hasLocation,
+          mapsUrl,
+          status: data.status,
+          locationData: data,
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (err: any) {
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        {
+          text: `❌ ${err?.message || 'Could not track this vehicle. Please check the number and try again.'}`,
+          sender: 'bot',
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        try {
-            // 3. Call Real API
-            const response = await trackVehicle(vehicleNum);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    // You could add a toast notification here
+  };
 
-            // 4. Format the success response
-            const locationMsg = `Current Location: ${response.data.currentLocation}\n\nStatus: ${response.data.status}`;
+  const formatMessage = (text: string) => {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+      // Check if line contains bold markers
+      if (line.includes('**')) {
+        const parts = line.split('**');
+        return (
+          <p key={i} className="mb-1.5 leading-relaxed">
+            {parts.map((part, idx) => 
+              idx % 2 === 1 ? (
+                <strong key={idx} className="font-semibold text-gray-900">{part}</strong>
+              ) : (
+                <span key={idx}>{part}</span>
+              )
+            )}
+          </p>
+        );
+      }
+      return (
+        <p key={i} className="mb-1.5 leading-relaxed">
+          {line}
+        </p>
+      );
+    });
+  };
 
-            setMessages(prev => [
-                ...prev,
-                {
-                    text: locationMsg,
-                    sender: 'bot',
-                    isLocation: true // Keeps your Map link logic working
-                }
-            ]);
-        } catch (err: any) {
-            // 5. Handle Error (Vehicle not found, server error, etc.)
-            setMessages(prev => [
-                ...prev,
-                {
-                    text: err.message || "Could not track this vehicle. Please check the number.",
-                    sender: 'bot'
-                }
-            ]);
-        }
-    };
+  const getStatusColor = (status?: 'online' | 'offline' | 'unknown') => {
+    switch (status) {
+      case 'online':
+        return 'bg-green-100 border-green-300';
+      case 'offline':
+        return 'bg-red-100 border-red-300';
+      default:
+        return 'bg-gray-100 border-gray-300';
+    }
+  };
 
-    const formatMessage = (text: string) => {
-        if (!text) return null;
-        // Split by newlines and map to paragraphs
-        return text.split('\n').map((line, i) => (
-            <p key={i} className="mb-1">{line}</p>
-        ));
-    };
-
-    // Prevent hydration mismatch
-    if (!isMounted) return null;
-
-    return (
-        <div className="flex flex-col h-screen bg-[#efeae2]">
-            {/* WhatsApp Header */}
-            <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <button
-                        onClick={() => router.push('/home')}
-                        className="text-white p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E] transition-colors touch-manipulation flex-shrink-0"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                    <div className="min-w-0">
-                        <p className="font-medium leading-none text-sm sm:text-base truncate">Track Your Delivery</p>
-                        <p className="text-xs opacity-80">Mandi Plus</p>
-                    </div>
-                </div>
-                {/* Optional Phone Icon */}
-                <div className="p-1.5 sm:p-2 rounded-full hover:bg-[#128C7E] transition-colors cursor-pointer touch-manipulation flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                    </svg>
-                </div>
+  return (
+    <div className="flex flex-col h-screen bg-[#efeae2] overflow-hidden">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white px-4 py-4 flex items-center justify-between shadow-lg z-10">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="p-2 rounded-full hover:bg-[#128C7E] transition-all duration-200 active:scale-95"
+            aria-label="Go back"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="bg-white/20 p-2 rounded-full">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
             </div>
-
-            {/* Chat Container */}
-            <div
-                className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
-                style={{
-                    backgroundColor: "#E5DDD5",
-                    backgroundImage: "url('/images/whatsapp-bg.png')",
-                    backgroundRepeat: 'repeat',
-                }}
-            >
-                {messages.map((message, index) => (
-                    <div
-                        key={index}
-                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                        <div
-                            className={`max-w-[85%] sm:max-w-[75%] px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm ${message.sender === 'user'
-                                    ? 'bg-[#dcf8c6] rounded-br-none text-black'
-                                    : 'bg-white rounded-bl-none text-black'
-                                }`}
-                        >
-                            <div className="text-gray-800">
-                                {formatMessage(message.text)}
-                                {message.isLocation && (
-                                    <a
-                                        href="https://maps.google.com"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:underline block mt-1 text-xs sm:text-sm font-medium touch-manipulation"
-                                    >
-                                        View on Google Maps
-                                    </a>
-                                )}
-                            </div>
-                            <div className="text-right mt-1">
-                                <span className="text-[10px] text-gray-500 opacity-70">
-                                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                <div ref={messagesEndRef} />
+            <div>
+              <p className="font-semibold text-base">Track Your Delivery</p>
+              <p className="text-xs opacity-90">Mandi Plus • Live Tracking</p>
             </div>
-
-            {/* Input Area */}
-            <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Enter vehicle number..."
-                        className="flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200"
-                    />
-                    <button
-                        type="submit"
-                        className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-[40px] sm:min-w-[44px] flex items-center justify-center"
-                    >
-                        <ArrowUpIcon className="h-5 w-5 text-white" />
-                    </button>
-                </form>
-            </div>
+          </div>
         </div>
-    );
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <span className="text-xs opacity-90">Online</span>
+        </div>
+      </div>
+
+      {/* Enhanced Chat Container */}
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
+        style={{
+          backgroundColor: '#E5DDD5',
+          backgroundImage: "url('/images/whatsapp-bg.png')",
+          backgroundRepeat: 'repeat',
+          backgroundSize: '300px',
+        }}
+      >
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`flex animate-fadeIn ${
+              message.sender === 'user'
+                ? 'justify-end'
+                : 'justify-start'
+            }`}
+          >
+            <div
+              className={`max-w-[80%] sm:max-w-[75%] px-4 py-3 text-[15px] rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${
+                message.sender === 'user'
+                  ? 'bg-gradient-to-br from-[#dcf8c6] to-[#d4f0b8] text-gray-900 rounded-br-sm'
+                  : `bg-white text-gray-800 rounded-bl-sm ${message.isLocation ? getStatusColor(message.status) + ' border-2' : ''}`
+              }`}
+            >
+              {message.sender === 'bot' && message.isLocation && (
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                  <div className={`w-3 h-3 rounded-full ${
+                    message.status === 'online' ? 'bg-green-500 animate-pulse' :
+                    message.status === 'offline' ? 'bg-red-500' :
+                    'bg-gray-400'
+                  }`}></div>
+                  <span className="text-xs font-semibold text-gray-600 uppercase">
+                    {message.status === 'online' ? 'Live Location' : 'Last Known Location'}
+                  </span>
+                </div>
+              )}
+
+              <div className="text-gray-800">
+                {formatMessage(message.text)}
+              </div>
+
+              {message.isLocation && message.mapsUrl && (
+                <div className="mt-3 space-y-2">
+                  <a
+                    href={message.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    View on Google Maps
+                  </a>
+                  
+                  {message.locationData?.shareUrl && (
+                    <button
+                      onClick={() => copyToClipboard(message.locationData!.shareUrl!)}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy Share Link
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-1 mt-2 text-[11px] text-gray-500">
+                <span>
+                  {message.timestamp?.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }) || new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+                {message.sender === 'user' && (
+                  <svg className="h-3 w-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Enhanced Input Area */}
+      <div className="bg-gradient-to-t from-[#f0f0f0] to-[#f5f5f5] px-4 py-3 border-t border-gray-300 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !isLoading) {
+                  handleSendMessage(e);
+                }
+              }}
+              placeholder="Enter vehicle number (e.g., MH12AB1234)..."
+              disabled={isLoading}
+              className="w-full rounded-full px-5 py-3 text-[15px] border-2 border-gray-300 focus:outline-none focus:border-[#25D366] focus:ring-2 focus:ring-[#25D366]/20 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            {isLoading && (
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#25D366] border-t-transparent"></div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => handleSendMessage()}
+            disabled={isLoading || !inputValue.trim()}
+            className="bg-gradient-to-r from-[#25D366] to-[#20BA5A] p-3 rounded-full text-white hover:from-[#20BA5A] hover:to-[#1DA851] transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center justify-center min-w-[48px]"
+            aria-label="Send"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          💡 Tip: Enter your vehicle registration number to track it in real-time
+        </p>
+      </div>
+    </div>
+  );
 };
 
 export default TrackingPage;

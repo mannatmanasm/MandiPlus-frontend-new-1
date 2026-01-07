@@ -11,7 +11,7 @@ import {
     TrashIcon
 } from '@heroicons/react/24/outline';
 import Cropper, { ReactCropperElement } from 'react-cropper';
-import "cropperjs/dist/cropper.css";
+
 import { createInsuranceForm } from '../api';
 
 // --- Types ---
@@ -453,21 +453,33 @@ const Insurance = () => {
             className="flex flex-col bg-[#efeae2] overflow-hidden fixed inset-0"
             style={{ height: viewportHeight } as React.CSSProperties}
         >
-            {/* Header */}
-            <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <button onClick={() => router.push('/home')} className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E]">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            {/* Enhanced Header */}
+            <div className="bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white px-4 py-4 flex items-center justify-between shadow-lg z-10 shrink-0">
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => router.push('/home')} 
+                        className="p-2 rounded-full hover:bg-[#128C7E] transition-all duration-200 active:scale-95"
+                        aria-label="Go back"
+                    >
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full shrink-0">
-                        <img className="w-full h-full rounded-full object-cover" src="/images/logo.jpeg" alt="" />
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white/20 p-2 rounded-full">
+                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-base">Create Insurance Form</p>
+                            <p className="text-xs opacity-90">Mandi Plus • Quick & Easy</p>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <p className="font-medium leading-none text-sm sm:text-base truncate">Mandi Plus</p>
-                        <p className="text-xs opacity-80">online</p>
-                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs opacity-90 hidden sm:inline">Online</span>
                 </div>
             </div>
 
@@ -518,60 +530,76 @@ const Insurance = () => {
                 </div>
             )}
 
-            {/* Chat Area */}
+            {/* Enhanced Chat Area */}
             <div
                 ref={chatContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
+                className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4 relative scroll-smooth"
                 style={{
+                    backgroundColor: '#E5DDD5',
                     backgroundImage: "url('/images/whatsapp-bg.png')",
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundAttachment: 'fixed',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundBlendMode: 'overlay'
+                    backgroundRepeat: 'repeat',
+                    backgroundSize: '300px',
                 }}
             >
                 {messages.map((m, i) => (
-                    <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className="flex items-center gap-2 max-w-[85%] sm:max-w-[75%]">
+                    <div 
+                        key={i} 
+                        className={`flex animate-fadeIn ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                        <div className="flex items-center gap-2 max-w-[80%] sm:max-w-[75%]">
                             {m.sender === 'user' && m.field && !isSubmitting && (
                                 <button
                                     onClick={() => handleEdit(m.field as string)}
-                                    className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === i
-                                        ? 'bg-[#128C7E] text-white'
-                                        : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
+                                    className={`p-2 rounded-full shadow-md transition-all duration-200 active:scale-95 ${editingMessageIndex === i
+                                        ? 'bg-[#128C7E] text-white ring-2 ring-[#128C7E] ring-offset-2'
+                                        : 'bg-white text-gray-500 hover:bg-gray-100 hover:text-[#075E54]'
                                         }`}
                                     title="Edit"
                                 >
-                                    <PencilSquareIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <PencilSquareIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                                 </button>
                             )}
                             <div
-                                className={`px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm ${m.sender === 'user'
-                                    ? 'bg-[#dcf8c6] rounded-br-none text-black'
-                                    : 'bg-white rounded-bl-none text-black'
-                                    } ${editingMessageIndex === i ? 'ring-2 ring-[#128C7E]' : ''}`}
+                                className={`px-4 py-3 text-[15px] rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${m.sender === 'user'
+                                    ? 'bg-gradient-to-br from-[#dcf8c6] to-[#d4f0b8] rounded-br-sm text-gray-900'
+                                    : 'bg-white rounded-bl-sm text-gray-800'
+                                    } ${editingMessageIndex === i ? 'ring-2 ring-[#128C7E] ring-offset-1' : ''}`}
                             >
-                                <div className="whitespace-pre-line leading-relaxed">{m.text}</div>
+                                <div className="whitespace-pre-line leading-relaxed font-medium">{m.text}</div>
+                                <div className="flex items-center justify-end gap-1 mt-2 text-[11px] text-gray-500">
+                                    <span>
+                                        {new Date().toLocaleTimeString([], {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })}
+                                    </span>
+                                    {m.sender === 'user' && (
+                                        <svg className="h-3 w-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
                 ))}
 
-                {/* --- RENDER DROPDOWN OPTIONS IN CHAT --- */}
-                {/* This section renders buttons (chips) when the current question is of type 'select' */}
+                {/* --- Enhanced Dropdown Options --- */}
                 {isSelectInput && !isSubmitting && !editingMessageIndex && currentQuestion.options && (
-                    <div className="flex justify-start w-full animate-in fade-in slide-in-from-bottom-2">
-                        <div className="w-[85%] sm:w-[75%]">
-                            <p className="text-[10px] text-gray-500 mb-1 ml-1 uppercase font-semibold tracking-wider">
+                    <div className="flex justify-start w-full animate-fadeIn">
+                        <div className="w-[80%] sm:w-[75%] bg-white rounded-2xl p-4 shadow-lg border-2 border-gray-100">
+                            <p className="text-xs text-gray-600 mb-3 font-semibold uppercase tracking-wider flex items-center gap-2">
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
                                 {language === 'hi' ? 'विकल्प चुनें' : 'Select an option'}
                             </p>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2.5">
                                 {currentQuestion.options.map((opt) => (
                                     <button
                                         key={opt}
                                         onClick={() => handleOptionSelect(opt)}
-                                        className="bg-white border border-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm shadow-sm hover:bg-[#dcf8c6] hover:border-[#25D366] hover:text-black transition-all active:scale-95 text-left"
+                                        className="bg-gradient-to-r from-white to-gray-50 border-2 border-gray-200 text-gray-800 px-4 py-2.5 rounded-xl text-sm font-medium shadow-md hover:from-[#dcf8c6] hover:to-[#d4f0b8] hover:border-[#25D366] hover:text-gray-900 transition-all duration-200 active:scale-95 text-left flex-1 min-w-[120px] sm:min-w-[140px]"
                                     >
                                         {opt}
                                     </button>
@@ -584,11 +612,19 @@ const Insurance = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
-            {/* We hide this bar if we are in 'select' mode to force user to use chat buttons */}
+            {/* Enhanced Input Bar */}
             {(!isSelectInput || editingMessageIndex !== null) && (
-                <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0">
-                    {error && <p className="text-red-500 text-xs mb-1 px-1">{error}</p>}
+                <div className="bg-gradient-to-t from-[#f0f0f0] to-[#f5f5f5] px-4 py-3 border-t border-gray-300 shadow-lg z-10 shrink-0">
+                    {error && (
+                        <div className="mb-2 px-3 py-2 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
+                            <p className="text-red-700 text-xs font-medium flex items-center gap-2">
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {error}
+                            </p>
+                        </div>
+                    )}
 
                     {isFileInput ? (
                         <div className="flex justify-center w-full">
@@ -603,9 +639,9 @@ const Insurance = () => {
                                     />
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
-                                        className={`bg-[#25D366] text-white px-3 sm:px-4 py-2 rounded-full flex items-center gap-2 shadow-sm hover:bg-[#20bd5a] text-xs sm:text-sm ${editingMessageIndex !== null ? 'ring-2 ring-blue-500' : ''}`}
+                                        className={`bg-gradient-to-r from-[#25D366] to-[#20BA5A] text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-lg hover:from-[#20BA5A] hover:to-[#1DA851] transition-all duration-200 active:scale-95 font-semibold text-sm sm:text-base ${editingMessageIndex !== null ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
                                     >
-                                        <PaperClipIcon className="w-4 h-4" />
+                                        <PaperClipIcon className="w-5 h-5" />
                                         <span className="hidden sm:inline">
                                             {language === 'hi'
                                                 ? (editingMessageIndex !== null ? 'नयी पर्ची अपलोड करें' : 'वजन पर्ची अपलोड करें')
@@ -617,63 +653,87 @@ const Insurance = () => {
                                     </button>
                                 </>
                             ) : (
-                                <div className="flex items-center gap-2 w-full">
-                                    <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
-                                        <div className="flex items-center gap-2 overflow-hidden">
-                                            <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
-                                            <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                <div className="flex items-center gap-3 w-full">
+                                    <div className="flex-1 bg-white rounded-full px-4 py-3 flex items-center justify-between border-2 border-gray-200 shadow-md">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className="bg-green-100 p-2 rounded-full">
+                                                <PaperClipIcon className="w-5 h-5 text-green-600 shrink-0" />
+                                            </div>
+                                            <span className="text-sm sm:text-base truncate max-w-[200px] sm:max-w-xs text-gray-700 font-medium">
                                                 {weightmentSlip.name}
                                             </span>
                                         </div>
                                         <button
                                             onClick={() => setWeightmentSlip(null)}
-                                            className="text-red-500 p-1 hover:bg-gray-100 rounded-full"
+                                            className="text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"
                                         >
-                                            <TrashIcon className="w-4 h-4" />
+                                            <TrashIcon className="w-5 h-5" />
                                         </button>
                                     </div>
                                     <button
                                         onClick={handleFileSubmit}
                                         disabled={isSubmitting}
-                                        className="bg-[#25D366] p-2 sm:p-2.5 rounded-full text-white hover:bg-[#20bd5a] shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center"
+                                        className="bg-gradient-to-r from-[#25D366] to-[#20BA5A] p-3 rounded-full text-white hover:from-[#20BA5A] hover:to-[#1DA851] shadow-lg transition-all duration-200 active:scale-95 min-w-[48px] flex items-center justify-center disabled:opacity-50"
                                     >
-                                        <ArrowUpIcon className="h-5 w-5 text-white" />
+                                        {isSubmitting ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                                        ) : (
+                                            <ArrowUpIcon className="h-5 w-5 text-white" />
+                                        )}
                                     </button>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                            <input
-                                ref={textInputRef}
-                                type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                placeholder={
-                                    editingMessageIndex !== null
-                                        ? (language === 'hi' ? 'यहाँ एडिट करें...' : 'Edit here...')
-                                        : (currentQuestion.type === 'number'
-                                            ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
-                                            : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...'))
-                                }
-                                className={`flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200 ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
-                                disabled={isSubmitting}
-                                step={currentQuestion.step}
-                                onFocus={() => {
-                                    setTimeout(() => {
-                                        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                                    }, 300);
-                                }}
-                            />
+                        <form onSubmit={handleSubmit} className="flex items-center gap-3">
+                            <div className="flex-1 relative">
+                                <input
+                                    ref={textInputRef}
+                                    type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    placeholder={
+                                        editingMessageIndex !== null
+                                            ? (language === 'hi' ? 'यहाँ एडिट करें...' : 'Edit here...')
+                                            : (currentQuestion.type === 'number'
+                                                ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
+                                                : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...'))
+                                    }
+                                    className={`w-full rounded-full px-5 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#25D366]/20 bg-white text-black border-2 transition-all duration-200 ${editingMessageIndex !== null ? 'border-[#128C7E]' : 'border-gray-300 focus:border-[#25D366]'}`}
+                                    disabled={isSubmitting}
+                                    step={currentQuestion.step}
+                                    onFocus={() => {
+                                        setTimeout(() => {
+                                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                        }, 300);
+                                    }}
+                                />
+                                {isSubmitting && (
+                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#25D366] border-t-transparent"></div>
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 type="submit"
-                                disabled={isSubmitting}
-                                className={`p-2 sm:p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 sm:min-w-11 flex items-center justify-center ${editingMessageIndex !== null ? 'bg-[#128C7E] hover:bg-[#0e6b5e]' : 'bg-[#25D366] hover:bg-[#20bd5a]'
-                                    }`}
+                                disabled={isSubmitting || !inputValue.trim()}
+                                className={`p-3 rounded-full text-white shadow-lg transition-all duration-200 active:scale-95 min-w-[48px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${editingMessageIndex !== null 
+                                    ? 'bg-gradient-to-r from-[#128C7E] to-[#0e6b5e] hover:from-[#0e6b5e] hover:to-[#0a5a4e]' 
+                                    : 'bg-gradient-to-r from-[#25D366] to-[#20BA5A] hover:from-[#20BA5A] hover:to-[#1DA851]'
+                                }`}
                             >
-                                <ArrowUpIcon className="h-5 w-5 text-white" />
+                                {isSubmitting ? (
+                                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                                ) : (
+                                    <ArrowUpIcon className="h-5 w-5 text-white" />
+                                )}
                             </button>
                         </form>
+                    )}
+                    {!isFileInput && (
+                        <p className="text-xs text-gray-500 mt-2 text-center">
+                            💡 {language === 'hi' ? 'टिप: अपना उत्तर टाइप करें और भेजें बटन दबाएं' : 'Tip: Type your answer and press send'}
+                        </p>
                     )}
                 </div>
             )}
