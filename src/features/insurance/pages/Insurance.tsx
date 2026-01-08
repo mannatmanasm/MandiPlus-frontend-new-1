@@ -39,7 +39,7 @@ interface QuestionText {
 
 interface Question {
     field: keyof FormData | 'language' | 'weightmentSlip';
-    type: 'text' | 'number' | 'language' | 'file' | 'select';
+    type: 'text' | 'number' | 'language' | 'file' | 'select' | 'address';
     text: QuestionText;
     optional?: boolean;
     step?: string;
@@ -50,6 +50,20 @@ interface Message {
     text: string;
     sender: 'bot' | 'user';
     field?: keyof FormData | 'language' | 'weightmentSlip';
+}
+
+// 1. UPDATE INTERFACE to catch Pin Code
+interface OSMPlace {
+    display_name: string;
+    lat: string;
+    lon: string;
+    address?: {
+        postcode?: string;
+        road?: string;
+        city?: string;
+        state?: string;
+        country?: string;
+    };
 }
 
 // --- Data ---
@@ -81,9 +95,9 @@ const questions: Question[] = [
         }
     },
     { field: 'supplierName', type: 'text', text: { en: "Supplier Kaun", hi: "माल भेजने वाला" } },
-    { field: 'supplierAddress', type: 'text', text: { en: "Place of Supply/Supply kahan se", hi: "भेजने वाले का पता" } },
+    { field: 'supplierAddress', type: 'address', text: { en: "Place of Supply/Supply kahan se", hi: "भेजने वाले का पता" } },
     { field: 'buyerName', type: 'text', text: { en: "Party Ka Naam", hi: "पार्टी का नाम" } },
-    { field: 'buyerAddress', type: 'text', text: { en: "Party Address", hi: "पार्टी का पता" } },
+    { field: 'buyerAddress', type: 'address', text: { en: "Party Address", hi: "पार्टी का पता" } },
     {
         field: 'itemName',
         type: 'select',
@@ -154,6 +168,12 @@ const Insurance = () => {
     const cropperRef = useRef<ReactCropperElement>(null);
     const [isCropperReady, setIsCropperReady] = useState(false);
 
+    // --- OpenStreetMap State ---
+    const [suggestions, setSuggestions] = useState<OSMPlace[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [isSearching, setIsSearching] = useState(false);
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const updateHeight = () => {
@@ -173,6 +193,68 @@ const Insurance = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, currentQuestionIndex]);
+
+    const fetchAddressSuggestions = async (query: string) => {
+        if (!query || query.length < 3) {
+            setSuggestions([]);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            // NOTE: 'addressdetails=1' is critical here to get the Pin Code
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=in`
+            );
+            const data = await response.json();
+            setSuggestions(data);
+            setShowSuggestions(true);
+        } catch (error) {
+            console.error("Error fetching address:", error);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const currentQ = questions[currentQuestionIndex];
+            if ((currentQ?.type === 'address' || editingMessageIndex !== null) && inputValue) {
+                const field = currentQ?.field;
+                const isAddressField = field === 'supplierAddress' || field === 'buyerAddress';
+
+                if (editingMessageIndex !== null) {
+                    const msg = messages[editingMessageIndex];
+                    if (msg.field === 'supplierAddress' || msg.field === 'buyerAddress') {
+                        fetchAddressSuggestions(inputValue);
+                    }
+                } else if (isAddressField) {
+                    fetchAddressSuggestions(inputValue);
+                }
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [inputValue, currentQuestionIndex, editingMessageIndex, messages]);
+
+    // 2. UPDATED HANDLER to force Pin Code inclusion
+    const handleAddressSelect = (place: OSMPlace) => {
+        let finalAddress = place.display_name;
+
+        // Check if OSM provided a specific postcode in the address details
+        if (place.address && place.address.postcode) {
+            const pin = place.address.postcode;
+            // Only add it if it's not already visible in the main string
+            if (!finalAddress.includes(pin)) {
+                finalAddress = `${finalAddress} - ${pin}`;
+            }
+        }
+
+        setInputValue(finalAddress);
+        setSuggestions([]);
+        setShowSuggestions(false);
+        textInputRef.current?.focus();
+    };
 
     const submitInsuranceForm = async (fileArgument: File | null = null) => {
         if (isSubmitting) return;
@@ -294,10 +376,12 @@ const Insurance = () => {
         }
     };
 
-    // New helper to process all inputs (text or buttons)
     const processInput = (value: string) => {
         const q = questions[currentQuestionIndex];
         const currentInput = value.trim();
+
+        setShowSuggestions(false);
+        setSuggestions([]);
 
         if (q.field === 'language') {
             if (currentInput !== '1' && currentInput !== '2') {
@@ -377,7 +461,6 @@ const Insurance = () => {
         processInput(inputValue);
     };
 
-    // Click handler for in-chat options
     const handleOptionSelect = (opt: string) => {
         processInput(opt);
     };
@@ -447,12 +530,16 @@ const Insurance = () => {
     const isFileInput = currentQuestion.type === 'file';
     const isSelectInput = currentQuestion.type === 'select';
 
+    const isAddressInput = currentQuestion.type === 'address' ||
+        (editingMessageIndex !== null &&
+            (messages[editingMessageIndex].field === 'supplierAddress' ||
+                messages[editingMessageIndex].field === 'buyerAddress'));
+
     return (
         <div
             className="flex flex-col bg-[#efeae2] overflow-hidden fixed inset-0"
             style={{ height: viewportHeight } as React.CSSProperties}
         >
-            {/* Header */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between shadow z-10 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <button onClick={() => router.push('/home')} className="p-1 -ml-1 sm:-ml-2 rounded-full hover:bg-[#128C7E]">
@@ -470,7 +557,6 @@ const Insurance = () => {
                 </div>
             </div>
 
-            {/* Cropper Overlay */}
             {isCropping && imageSrc && (
                 <div className="fixed inset-0 z-50 bg-black flex flex-col">
                     <div className="flex-1 w-full relative min-h-0 bg-black">
@@ -517,7 +603,6 @@ const Insurance = () => {
                 </div>
             )}
 
-            {/* Chat Area */}
             <div
                 ref={chatContainerRef}
                 className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
@@ -551,14 +636,12 @@ const Insurance = () => {
                                     : 'bg-white rounded-bl-none text-black'
                                     } ${editingMessageIndex === i ? 'ring-2 ring-[#128C7E]' : ''}`}
                             >
-                                <div className="whitespace-pre-line leading-relaxed">{m.text}</div>
+                                <div className="whitespace-pre-line leading-relaxed break-all">{m.text}</div>
                             </div>
                         </div>
                     </div>
                 ))}
 
-                {/* --- RENDER DROPDOWN OPTIONS IN CHAT --- */}
-                {/* This section renders buttons (chips) when the current question is of type 'select' */}
                 {isSelectInput && !isSubmitting && !editingMessageIndex && currentQuestion.options && (
                     <div className="flex justify-start w-full animate-in fade-in slide-in-from-bottom-2">
                         <div className="w-[85%] sm:w-[75%]">
@@ -583,11 +666,26 @@ const Insurance = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
-            {/* We hide this bar if we are in 'select' mode to force user to use chat buttons */}
             {(!isSelectInput || editingMessageIndex !== null) && (
-                <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0">
+                <div className="bg-[#f0f0f0] px-2 sm:px-3 py-2 border-t z-10 shrink-0 relative">
                     {error && <p className="text-red-500 text-xs mb-1 px-1">{error}</p>}
+
+                    {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute bottom-full left-0 w-full bg-white border-t border-gray-200 shadow-lg max-h-48 overflow-y-auto z-50 mb-1">
+                            {suggestions.map((place, idx) => (
+                                <div
+                                    key={idx}
+                                    onClick={() => handleAddressSelect(place)}
+                                    className="p-3 border-b border-gray-100 hover:bg-gray-100 cursor-pointer text-sm text-gray-700"
+                                >
+                                    {place.display_name}
+                                </div>
+                            ))}
+                            <div className="p-1 text-right text-[10px] text-gray-400 bg-gray-50">
+                                Powered by OpenStreetMap
+                            </div>
+                        </div>
+                    )}
 
                     {isFileInput ? (
                         <div className="flex justify-center w-full">
@@ -642,18 +740,25 @@ const Insurance = () => {
                             )}
                         </div>
                     ) : (
-                        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                        <form onSubmit={handleSubmit} className="flex items-center gap-2 relative w-full">
                             <input
                                 ref={textInputRef}
-                                type={currentQuestion.type === 'language' ? 'text' : currentQuestion.type}
+                                type={currentQuestion.type === 'language' ? 'text' : (currentQuestion.type === 'address' ? 'text' : currentQuestion.type)}
                                 value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
+                                onChange={(e) => {
+                                    setInputValue(e.target.value);
+                                    if (isAddressInput) {
+                                        // Debounced fetch handles suggestions
+                                    }
+                                }}
                                 placeholder={
                                     editingMessageIndex !== null
                                         ? (language === 'hi' ? 'यहाँ एडिट करें...' : 'Edit here...')
-                                        : (currentQuestion.type === 'number'
-                                            ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
-                                            : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...'))
+                                        : (isAddressInput
+                                            ? (language === 'hi' ? 'पता टाइप करें...' : 'Start typing address...')
+                                            : (currentQuestion.type === 'number'
+                                                ? (language === 'hi' ? 'संख्या दर्ज करें...' : 'Enter a number...')
+                                                : (language === 'hi' ? 'अपना उत्तर टाइप करें...' : 'Type your answer...')))
                                 }
                                 className={`flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200 ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
                                 disabled={isSubmitting}
