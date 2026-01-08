@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react"; // 1. Import useState
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "../auth/components/ProtectedRoute";
+import { getMyInsuranceForms, regenerateInvoice, InsuranceForm, RegenerateInvoicePayload } from "../insurance/api";
 
 interface User {
   mobileNumber?: string;
@@ -10,22 +11,36 @@ interface User {
 
 const HomePage = () => {
   const router = useRouter();
-
-  // 2. Create state to hold user data (starts empty)
   const [user, setUser] = useState<User>({});
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Invoice states
+  const [invoices, setInvoices] = useState<InsuranceForm[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<InsuranceForm | null>(null);
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
+  
+  // Regenerate form states
+  const [formData, setFormData] = useState({
+    supplierName: '',
+    billToName: '',
+    amount: 0,
+    quantity: 0,
+    rate: 0,
+    placeOfSupply: '',
+  });
+  const [regenerating, setRegenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 3. This code runs ONLY in the browser
     setIsMounted(true);
-
     const token = localStorage.getItem("accessToken");
     if (!token) {
       router.push("/");
       return;
     }
 
-    // 4. Safely read user data here
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
@@ -36,11 +51,77 @@ const HomePage = () => {
     }
   }, [router]);
 
-  // 5. Calculate username from state (defaults to "user" if loading/empty)
+  // Fetch invoices when modal opens
+  const fetchInvoices = async () => {
+    setLoadingInvoices(true);
+    try {
+      const data = await getMyInsuranceForms();
+      setInvoices(data);
+    } catch (err: any) {
+      console.error('Failed to fetch invoices:', err);
+      setError(err.message || 'Failed to load invoices');
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  const handleOpenInvoiceModal = () => {
+    setShowInvoiceModal(true);
+    fetchInvoices();
+  };
+
+  const handleEditInvoice = (invoice: InsuranceForm) => {
+    setSelectedInvoice(invoice);
+    setFormData({
+      supplierName: invoice.supplierName || '',
+      billToName: invoice.billToName || '',
+      amount: invoice.amount || 0,
+      quantity: invoice.quantity || 0,
+      rate: invoice.rate || 0,
+      placeOfSupply: invoice.placeOfSupply || '',
+    });
+    setShowRegenerateForm(true);
+  };
+
+  const handleRegenerateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoice) return;
+
+    setRegenerating(true);
+    setError(null);
+
+    try {
+      const payload: RegenerateInvoicePayload = {
+        invoiceId: selectedInvoice.id,
+        ...formData,
+      };
+
+      const updatedInvoice = await regenerateInvoice(payload);
+      
+      // Update the invoice in the list
+      setInvoices(prev => 
+        prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv)
+      );
+
+      // Success feedback
+      alert('✅ Invoice updated successfully! PDF will be regenerated shortly.');
+      
+      // Close forms
+      setShowRegenerateForm(false);
+      setSelectedInvoice(null);
+    } catch (err: any) {
+      const errorMsg = Array.isArray(err.message) 
+        ? err.message.join(', ') 
+        : err.message || 'Failed to regenerate invoice';
+      setError(errorMsg);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   const username = user.mobileNumber || "user";
 
   const handleLogout = () => {
-    // Check if window exists before removing (safety check)
     if (typeof window !== 'undefined') {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("user");
@@ -48,9 +129,8 @@ const HomePage = () => {
     router.push("/");
   };
 
-  // Prevent hydration mismatch (optional but recommended)
   if (!isMounted) {
-    return null; // or a loading spinner
+    return null;
   }
 
   return (
@@ -128,12 +208,13 @@ const HomePage = () => {
               </p>
             </div>
 
+            {/* Updated My Policies Card */}
             <div
               className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
-              onClick={() => router.push("/my-insurance-forms")}
+              onClick={handleOpenInvoiceModal}
             >
               <h4 className="font-semibold mb-1 text-slate-800">My Policies</h4>
-              <p className="text-xs text-gray-500">Submitted forms</p>
+              <p className="text-xs text-gray-500">View & Edit forms</p>
             </div>
           </div>
         </div>
@@ -160,6 +241,205 @@ const HomePage = () => {
             <span className="text-xl text-slate-800">→</span>
           </div>
         </div>
+
+        {/* INVOICE LIST MODAL */}
+        {showInvoiceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
+                <h3 className="text-xl font-bold text-slate-800">My Invoices</h3>
+                <button
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6">
+                {loadingInvoices ? (
+                  <div className="text-center py-8 text-gray-500">Loading invoices...</div>
+                ) : invoices.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No invoices found</div>
+                ) : (
+                  <div className="space-y-4">
+                    {invoices.map((invoice) => (
+                      <div key={invoice.id} className="border rounded-2xl p-4 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-semibold text-slate-800">{invoice.invoiceNumber}</h4>
+                            <p className="text-sm text-gray-600">{invoice.supplierName}</p>
+                            <p className="text-xs text-gray-500">{invoice.invoiceDate}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-slate-800">₹{invoice.amount?.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          {invoice.pdfUrl && (
+                            <a
+                              href={invoice.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-200 text-center"
+                            >
+                              📄 View PDF
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleEditInvoice(invoice)}
+                            className="flex-1 bg-[#4309ac] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#350889]"
+                          >
+                            ✏️ Edit & Regenerate
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* REGENERATE FORM MODAL */}
+        {showRegenerateForm && selectedInvoice && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
+                <h3 className="text-xl font-bold text-slate-800">Update Invoice</h3>
+                <button
+                  onClick={() => {
+                    setShowRegenerateForm(false);
+                    setSelectedInvoice(null);
+                    setError(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleRegenerateSubmit} className="p-6 space-y-4">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-800 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
+                  Invoice: <span className="font-semibold">{selectedInvoice.invoiceNumber}</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Supplier Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.supplierName}
+                    onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter supplier name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Bill To Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.billToName}
+                    onChange={(e) => setFormData({ ...formData, billToName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter buyer name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Place of Supply
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.placeOfSupply}
+                    onChange={(e) => setFormData({ ...formData, placeOfSupply: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter place of supply"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                      Rate
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.rate}
+                      onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRegenerateForm(false);
+                      setSelectedInvoice(null);
+                      setError(null);
+                    }}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50"
+                    disabled={regenerating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={regenerating}
+                    className="flex-1 px-4 py-3 bg-[#4309ac] text-white rounded-xl font-medium hover:bg-[#350889] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {regenerating ? 'Updating...' : 'Update & Regenerate PDF'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* BOTTOM NAV */}
         <div className="fixed bottom-0 left-0 right-0 bg-black text-white rounded-t-[28px] py-3">
