@@ -8,7 +8,8 @@ import {
     PencilSquareIcon,
     CheckIcon,
     XMarkIcon,
-    TrashIcon
+    TrashIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import Cropper, { ReactCropperElement } from 'react-cropper';
 
@@ -154,6 +155,7 @@ const Insurance = () => {
     const [isCropping, setIsCropping] = useState(false);
     const cropperRef = useRef<ReactCropperElement>(null);
     const [isCropperReady, setIsCropperReady] = useState(false);
+    const [rotation, setRotation] = useState(0);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -326,7 +328,6 @@ const Insurance = () => {
                     return newMsgs;
                 });
                 setEditingMessageIndex(null);
-                setInputValue('');
                 if (resumeQuestionIndex !== null) setCurrentQuestionIndex(resumeQuestionIndex);
                 setResumeQuestionIndex(null);
                 return;
@@ -397,34 +398,97 @@ const Insurance = () => {
         }
     };
 
-    const handleCropComplete = () => {
-        const cropper = cropperRef.current?.cropper;
-        if (!cropper) return;
-        const canvas = cropper.getCroppedCanvas();
-        if (!canvas) return;
+    const rotateImage = (degrees: number) => {
+        setRotation(prev => (prev + degrees) % 360);
+        if (cropperRef.current) {
+            const image = cropperRef.current.cropper.getImageData();
+            cropperRef.current.cropper.rotateTo(rotation + degrees);
+        }
+    };
 
-        canvas.toBlob(async (blob: Blob | null) => {
-            if (!blob) return;
-            const croppedFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
-            setWeightmentSlip(croppedFile);
-            setIsCropping(false);
-
-            if (editingMessageIndex !== null) {
-                setMessages(prev => {
-                    const newMsgs = [...prev];
-                    newMsgs[editingMessageIndex] = {
-                        ...newMsgs[editingMessageIndex],
-                        text: `📎 ${croppedFile.name} (Edited)`
-                    };
-                    return newMsgs;
-                });
-                setEditingMessageIndex(null);
-                if (resumeQuestionIndex !== null) {
-                    setCurrentQuestionIndex(resumeQuestionIndex);
-                    setResumeQuestionIndex(null);
-                }
+    const getCroppedImage = (): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+            const cropper = cropperRef.current?.cropper;
+            if (!cropper) {
+                resolve(null);
+                return;
             }
-        }, 'image/jpeg');
+
+            const canvas = cropper.getCroppedCanvas({
+                minWidth: 300,
+                minHeight: 300,
+                maxWidth: 4096,
+                maxHeight: 4096,
+                fillColor: '#fff',
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+
+            if (!canvas) {
+                resolve(null);
+                return;
+            }
+
+            // Apply rotation if any
+            if (rotation !== 0) {
+                const rotatedCanvas = document.createElement('canvas');
+                const ctx = rotatedCanvas.getContext('2d');
+                if (!ctx) {
+                    resolve(null);
+                    return;
+                }
+
+                // Set canvas size to fit rotated image
+                if (rotation % 180 === 0) {
+                    rotatedCanvas.width = canvas.width;
+                    rotatedCanvas.height = canvas.height;
+                } else {
+                    rotatedCanvas.width = canvas.height;
+                    rotatedCanvas.height = canvas.width;
+                }
+
+                // Move to center, rotate, then draw
+                ctx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+                ctx.rotate((rotation * Math.PI) / 180);
+                ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+
+                // Use the rotated canvas
+                rotatedCanvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.9);
+            } else {
+                // No rotation needed, use original canvas
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.9);
+            }
+        });
+    };
+
+    const handleCropComplete = async () => {
+        const blob = await getCroppedImage();
+        if (!blob) return;
+
+        const croppedFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+        setWeightmentSlip(croppedFile);
+        setIsCropping(false);
+        setRotation(0); // Reset rotation for next use
+
+        if (editingMessageIndex !== null) {
+            setMessages(prev => {
+                const newMsgs = [...prev];
+                newMsgs[editingMessageIndex] = {
+                    ...newMsgs[editingMessageIndex],
+                    text: `📎 ${croppedFile.name} (Edited)`
+                };
+                return newMsgs;
+            });
+            setEditingMessageIndex(null);
+            if (resumeQuestionIndex !== null) {
+                setCurrentQuestionIndex(resumeQuestionIndex);
+                setResumeQuestionIndex(null);
+            }
+        }
     };
 
     const handleFileSubmit = async () => {
@@ -456,8 +520,8 @@ const Insurance = () => {
             {/* Enhanced Header */}
             <div className="bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white px-4 py-4 flex items-center justify-between shadow-lg z-10 shrink-0">
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => router.push('/home')} 
+                    <button
+                        onClick={() => router.push('/home')}
                         className="p-2 rounded-full hover:bg-[#128C7E] transition-all duration-200 active:scale-95"
                         aria-label="Go back"
                     >
@@ -497,35 +561,78 @@ const Insurance = () => {
                             dragMode="move"
                             responsive={true}
                             autoCropArea={0.9}
-                            checkOrientation={false}
+                            checkOrientation={true}
                             background={false}
-                            ready={() => setIsCropperReady(true)}
+                            ready={() => {
+                                setIsCropperReady(true);
+                                // Reset rotation when a new image is loaded
+                                setRotation(0);
+                            }}
                             minCropBoxHeight={10}
                             minCropBoxWidth={10}
+                            autoCrop={true}
+                            aspectRatio={1}
+                            restore={false}
+                            zoomable={true}
+                            zoomOnWheel={true}
+                            zoomOnTouch={true}
+                            toggleDragModeOnDblclick={true}
                         />
                     </div>
                     <div className="w-full bg-black/90 p-4 pb-8 flex justify-between items-center px-6 shrink-0 z-50">
-                        <button
-                            type="button"
-                            onClick={() => { setIsCropping(false); setImageSrc(null); setWeightmentSlip(null); }}
-                            className="flex flex-col items-center text-red-500 gap-1"
-                        >
-                            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
-                                <XMarkIcon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs">Cancel</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleCropComplete}
-                            disabled={!isCropperReady}
-                            className={`flex flex-col items-center gap-1 transition-opacity ${isCropperReady ? 'opacity-100 text-[#25D366]' : 'opacity-50 text-gray-500'}`}
-                        >
-                            <div className={`p-2 rounded-full bg-gray-800 border ${isCropperReady ? 'border-[#25D366]' : 'border-gray-500'} hover:bg-gray-700`}>
-                                <CheckIcon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs">Done</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => rotateImage(-90)}
+                                className="flex flex-col items-center text-white gap-1"
+                                title="Rotate Left 90°"
+                            >
+                                <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                    <ArrowPathIcon className="w-5 h-5 transform rotate-90" />
+                                </div>
+                                <span className="text-xs">⟲ Left</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => rotateImage(90)}
+                                className="flex flex-col items-center text-white gap-1"
+                                title="Rotate Right 90°"
+                            >
+                                <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                    <ArrowPathIcon className="w-5 h-5 -scale-x-100 transform rotate-90" />
+                                </div>
+                                <span className="text-xs">⟳ Right</span>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsCropping(false);
+                                    setImageSrc(null);
+                                    setWeightmentSlip(null);
+                                    setRotation(0);
+                                }}
+                                className="flex flex-col items-center text-red-500 gap-1"
+                            >
+                                <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700">
+                                    <XMarkIcon className="w-6 h-6" />
+                                </div>
+                                <span className="text-xs">Cancel</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCropComplete}
+                                disabled={!isCropperReady}
+                                className={`flex flex-col items-center gap-1 transition-opacity ${isCropperReady ? 'opacity-100 text-[#25D366]' : 'opacity-50 text-gray-500'}`}
+                            >
+                                <div className={`p-2 rounded-full bg-gray-800 border ${isCropperReady ? 'border-[#25D366]' : 'border-gray-500'} hover:bg-gray-700`}>
+                                    <CheckIcon className="w-6 h-6" />
+                                </div>
+                                <span className="text-xs">Done</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -542,8 +649,8 @@ const Insurance = () => {
                 }}
             >
                 {messages.map((m, i) => (
-                    <div 
-                        key={i} 
+                    <div
+                        key={i}
                         className={`flex animate-fadeIn ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                         <div className="flex items-center gap-2 max-w-[80%] sm:max-w-[75%]">
@@ -717,10 +824,10 @@ const Insurance = () => {
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !inputValue.trim()}
-                                className={`p-3 rounded-full text-white shadow-lg transition-all duration-200 active:scale-95 min-w-[48px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${editingMessageIndex !== null 
-                                    ? 'bg-gradient-to-r from-[#128C7E] to-[#0e6b5e] hover:from-[#0e6b5e] hover:to-[#0a5a4e]' 
+                                className={`p-3 rounded-full text-white shadow-lg transition-all duration-200 active:scale-95 min-w-[48px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${editingMessageIndex !== null
+                                    ? 'bg-gradient-to-r from-[#128C7E] to-[#0e6b5e] hover:from-[#0e6b5e] hover:to-[#0a5a4e]'
                                     : 'bg-gradient-to-r from-[#25D366] to-[#20BA5A] hover:from-[#20BA5A] hover:to-[#1DA851]'
-                                }`}
+                                    }`}
                             >
                                 {isSubmitting ? (
                                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>

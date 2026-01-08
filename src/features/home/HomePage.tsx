@@ -13,22 +13,34 @@ const HomePage = () => {
   const router = useRouter();
   const [user, setUser] = useState<User>({});
   const [isMounted, setIsMounted] = useState(false);
-  
+
   // Invoice states
   const [invoices, setInvoices] = useState<InsuranceForm[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InsuranceForm | null>(null);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
-  
+
   // Regenerate form states
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegenerateInvoicePayload>({
+    invoiceId: '',
     supplierName: '',
+    supplierAddress: [''],
+    placeOfSupply: '',
     billToName: '',
-    amount: 0,
+    billToAddress: [''],
+    shipToName: '',
+    shipToAddress: [''],
+    productName: '',
+    hsnCode: '',
     quantity: 0,
     rate: 0,
-    placeOfSupply: '',
+    amount: 0,
+    vehicleNumber: '',
+    truckNumber: '',
+    weighmentSlipNote: '',
+    invoiceType: 'BUYER_INVOICE',
+    invoiceDate: new Date().toISOString().split('T')[0],
   });
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,12 +85,24 @@ const HomePage = () => {
   const handleEditInvoice = (invoice: InsuranceForm) => {
     setSelectedInvoice(invoice);
     setFormData({
-      supplierName: invoice.supplierName || '',
-      billToName: invoice.billToName || '',
-      amount: invoice.amount || 0,
+      invoiceId: invoice.id,
+      supplierName: invoice.supplierName,
+      supplierAddress: invoice.supplierAddress || [''],
+      placeOfSupply: invoice.placeOfSupply,
+      billToName: invoice.billToName,
+      billToAddress: invoice.billToAddress || [''],
+      shipToName: invoice.shipToName || '',
+      shipToAddress: invoice.shipToAddress || [''],
+      productName: invoice.productName?.[0] || '',
+      hsnCode: invoice.hsnCode || '',
       quantity: invoice.quantity || 0,
       rate: invoice.rate || 0,
-      placeOfSupply: invoice.placeOfSupply || '',
+      amount: invoice.amount || 0,
+      vehicleNumber: invoice.vehicleNumber || '',
+      truckNumber: invoice.truckNumber || '',
+      weighmentSlipNote: invoice.weighmentSlipNote || '',
+      invoiceType: 'BUYER_INVOICE', // Default to BUYER_INVOICE since invoiceType doesn't exist on InsuranceForm
+      invoiceDate: invoice.invoiceDate || new Date().toISOString().split('T')[0],
     });
     setShowRegenerateForm(true);
   };
@@ -91,27 +115,47 @@ const HomePage = () => {
     setError(null);
 
     try {
+      const { invoiceId, ...formDataWithoutId } = formData;
+      // Ensure all address fields are properly typed as string arrays
+      const supplierAddress = Array.isArray(formData.supplierAddress)
+        ? formData.supplierAddress.filter((addr): addr is string => typeof addr === 'string')
+        : [String(formData.supplierAddress || '')];
+
+      const billToAddress = Array.isArray(formData.billToAddress)
+        ? formData.billToAddress.filter((addr): addr is string => typeof addr === 'string')
+        : [String(formData.billToAddress || '')];
+
+      const shipToAddress = formData.shipToAddress
+        ? (Array.isArray(formData.shipToAddress)
+          ? formData.shipToAddress.filter((addr): addr is string => typeof addr === 'string')
+          : [String(formData.shipToAddress)])
+        : [''];
+
       const payload: RegenerateInvoicePayload = {
+        ...formDataWithoutId,
         invoiceId: selectedInvoice.id,
-        ...formData,
+        productName: formData.productName || '',
+        supplierAddress,
+        billToAddress,
+        shipToAddress,
       };
 
       const updatedInvoice = await regenerateInvoice(payload);
-      
+
       // Update the invoice in the list
-      setInvoices(prev => 
+      setInvoices(prev =>
         prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv)
       );
 
       // Success feedback
       alert('✅ Invoice updated successfully! PDF will be regenerated shortly.');
-      
+
       // Close forms
       setShowRegenerateForm(false);
       setSelectedInvoice(null);
     } catch (err: any) {
-      const errorMsg = Array.isArray(err.message) 
-        ? err.message.join(', ') 
+      const errorMsg = Array.isArray(err.message)
+        ? err.message.join(', ')
         : err.message || 'Failed to regenerate invoice';
       setError(errorMsg);
     } finally {
@@ -275,7 +319,7 @@ const HomePage = () => {
                             <p className="font-bold text-slate-800">₹{invoice.amount?.toLocaleString()}</p>
                           </div>
                         </div>
-                        
+
                         <div className="flex gap-2">
                           {invoice.pdfUrl && (
                             <a
@@ -332,6 +376,22 @@ const HomePage = () => {
                   Invoice: <span className="font-semibold">{selectedInvoice.invoiceNumber}</span>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                      Invoice Type
+                    </label>
+                    <select
+                      value={formData.invoiceType}
+                      onChange={(e) => setFormData({ ...formData, invoiceType: e.target.value as any })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    >
+                      <option value="BUYER_INVOICE">Buyer Invoice</option>
+                      <option value="SUPPLIER_INVOICE">Supplier Invoice</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-800 mb-1">
                     Supplier Name
@@ -347,6 +407,19 @@ const HomePage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Supplier Address
+                  </label>
+                  <textarea
+                    value={Array.isArray(formData.supplierAddress) ? formData.supplierAddress[0] : formData.supplierAddress}
+                    onChange={(e) => setFormData({ ...formData, supplierAddress: [e.target.value] })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter supplier address"
+                    rows={2}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
                     Bill To Name
                   </label>
                   <input
@@ -355,6 +428,45 @@ const HomePage = () => {
                     onChange={(e) => setFormData({ ...formData, billToName: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
                     placeholder="Enter buyer name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Bill To Address
+                  </label>
+                  <textarea
+                    value={Array.isArray(formData.billToAddress) ? formData.billToAddress[0] : formData.billToAddress}
+                    onChange={(e) => setFormData({ ...formData, billToAddress: [e.target.value] })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter buyer address"
+                    rows={2}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Ship To Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.shipToName}
+                    onChange={(e) => setFormData({ ...formData, shipToName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter ship to name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-800 mb-1">
+                    Ship To Address
+                  </label>
+                  <textarea
+                    value={Array.isArray(formData.shipToAddress) ? formData.shipToAddress[0] : formData.shipToAddress}
+                    onChange={(e) => setFormData({ ...formData, shipToAddress: [e.target.value] })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                    placeholder="Enter shipping address"
+                    rows={2}
                   />
                 </div>
 
@@ -374,6 +486,33 @@ const HomePage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-800 mb-1">
+                      Product Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.productName}
+                      onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                      placeholder="Enter product name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                      HSN Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.hsnCode}
+                      onChange={(e) => setFormData({ ...formData, hsnCode: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                      placeholder="Enter HSN code"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
                       Quantity
                     </label>
                     <input
@@ -388,7 +527,7 @@ const HomePage = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-800 mb-1">
-                      Rate
+                      Rate (₹)
                     </label>
                     <input
                       type="number"
@@ -399,19 +538,35 @@ const HomePage = () => {
                       placeholder="0.00"
                     />
                   </div>
+
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                      Vehicle Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.vehicleNumber}
+                      onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                      placeholder="Enter vehicle number"
+                    />
+                  </div>
+
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-800 mb-1">
-                    Amount (₹)
+                    Weighment Slip Note
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                  <textarea
+                    value={formData.weighmentSlipNote}
+                    onChange={(e) => setFormData({ ...formData, weighmentSlipNote: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
-                    placeholder="0.00"
+                    placeholder="Enter any additional notes"
+                    rows={3}
                   />
                 </div>
 

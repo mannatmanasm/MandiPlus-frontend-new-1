@@ -7,15 +7,15 @@ interface Props {
     onCancel?: () => void;
 }
 
-export const RegenerateInvoiceForm: React.FC<Props> = ({ 
-    invoiceId, 
-    onSuccess, 
-    onCancel 
+export const RegenerateInvoiceForm: React.FC<Props> = ({
+    invoiceId,
+    onSuccess,
+    onCancel
 }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [invoice, setInvoice] = useState<InsuranceForm | null>(null);
-    
+
     // Form state
     const [formData, setFormData] = useState({
         invoiceDate: '',
@@ -46,7 +46,7 @@ export const RegenerateInvoiceForm: React.FC<Props> = ({
                 setLoading(true);
                 const data = await getInvoiceById(invoiceId);
                 setInvoice(data);
-                
+
                 // Populate form with existing data
                 setFormData({
                     invoiceDate: data.invoiceDate || '',
@@ -95,13 +95,13 @@ export const RegenerateInvoiceForm: React.FC<Props> = ({
             };
 
             const updatedInvoice = await regenerateInvoice(payload);
-            
+
             if (onSuccess) {
                 onSuccess(updatedInvoice);
             }
         } catch (err: any) {
-            const errorMsg = Array.isArray(err.message) 
-                ? err.message.join(', ') 
+            const errorMsg = Array.isArray(err.message)
+                ? err.message.join(', ')
                 : err.message || 'Failed to regenerate invoice';
             setError(errorMsg);
         } finally {
@@ -131,7 +131,7 @@ export const RegenerateInvoiceForm: React.FC<Props> = ({
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
             <h2 className="text-2xl font-bold mb-6">Update & Regenerate Invoice</h2>
-            
+
             {error && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded">
                     <p className="text-red-800">{error}</p>
