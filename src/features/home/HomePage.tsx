@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "../auth/components/ProtectedRoute";
 import { getMyInsuranceForms, regenerateInvoice, InsuranceForm, RegenerateInvoicePayload } from "../insurance/api";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/";
+
 interface User {
   mobileNumber?: string;
 }
@@ -108,61 +110,97 @@ const HomePage = () => {
     setShowRegenerateForm(true);
   };
 
-  const handleRegenerateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoice) return;
+const handleRegenerateSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selectedInvoice) return;
 
-    setRegenerating(true);
-    setError(null);
+  setRegenerating(true);
+  setError(null);
 
-    try {
-      const { invoiceId, ...formDataWithoutId } = formData;
-      // Ensure all address fields are properly typed as string arrays
-      const supplierAddress = Array.isArray(formData.supplierAddress)
-        ? formData.supplierAddress.filter((addr): addr is string => typeof addr === 'string')
-        : [String(formData.supplierAddress || '')];
+  try {
+    const { invoiceId, ...formDataWithoutId } = formData;
+    // Ensure all address fields are properly typed as string arrays
+    const supplierAddress = Array.isArray(formData.supplierAddress)
+      ? formData.supplierAddress.filter((addr): addr is string => typeof addr === 'string')
+      : [String(formData.supplierAddress || '')];
 
-      const billToAddress = Array.isArray(formData.billToAddress)
-        ? formData.billToAddress.filter((addr): addr is string => typeof addr === 'string')
-        : [String(formData.billToAddress || '')];
+    const billToAddress = Array.isArray(formData.billToAddress)
+      ? formData.billToAddress.filter((addr): addr is string => typeof addr === 'string')
+      : [String(formData.billToAddress || '')];
 
-      const shipToAddress = formData.shipToAddress
-        ? (Array.isArray(formData.shipToAddress)
-          ? formData.shipToAddress.filter((addr): addr is string => typeof addr === 'string')
-          : [String(formData.shipToAddress)])
-        : [''];
+    const shipToAddress = formData.shipToAddress
+      ? (Array.isArray(formData.shipToAddress)
+        ? formData.shipToAddress.filter((addr): addr is string => typeof addr === 'string')
+        : [String(formData.shipToAddress)])
+      : [''];
 
-      const payload: RegenerateInvoicePayload = {
-        ...formDataWithoutId,
-        invoiceId: selectedInvoice.id,
-        productName: formData.productName || '',
-        supplierAddress,
-        billToAddress,
-        shipToAddress,
-      };
+    const payload: RegenerateInvoicePayload = {
+      ...formDataWithoutId,
+      invoiceId: selectedInvoice.id,
+      productName: formData.productName || '',
+      supplierAddress,
+      billToAddress,
+      shipToAddress,
+    };
 
-      const updatedInvoice = await regenerateInvoice(payload);
+    const updatedInvoice = await regenerateInvoice(payload);
 
-      // Update the invoice in the list
-      setInvoices(prev =>
-        prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv)
-      );
+    // Success feedback
+    alert('✅ Invoice updated successfully! PDF is being regenerated...');
 
-      // Success feedback
-      alert('✅ Invoice updated successfully! PDF will be regenerated shortly.');
+    // Close modal first
+    setShowRegenerateForm(false);
+    setSelectedInvoice(null);
 
-      // Close forms
-      setShowRegenerateForm(false);
-      setSelectedInvoice(null);
-    } catch (err: any) {
-      const errorMsg = Array.isArray(err.message)
-        ? err.message.join(', ')
-        : err.message || 'Failed to regenerate invoice';
-      setError(errorMsg);
-    } finally {
-      setRegenerating(false);
-    }
-  };
+    // Poll for updated invoice with new PDF URL (maximum 10 attempts, 2 seconds apart)
+    let attempts = 0;
+    const maxAttempts = 1;
+    const pollInterval = 5000; // 5 seconds
+
+    const pollForUpdate = async () => {
+      attempts++;
+      
+      try {
+        // Fetch fresh invoice data from API
+        const response = await fetch(`${API_BASE_URL}/invoices/${updatedInvoice.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const freshInvoice = await response.json();
+          
+          // Update local state with fresh data
+          setInvoices(prev =>
+            prev.map(inv => inv.id === freshInvoice.id ? freshInvoice : inv)
+          );
+
+          console.log('✅ Invoice refreshed with updated PDF');
+        }
+      } catch (error) {
+        console.error('Error polling invoice:', error);
+      }
+
+      // Continue polling if not reached max attempts
+      if (attempts < maxAttempts) {
+        setTimeout(pollForUpdate, pollInterval);
+      }
+    };
+
+    // Start polling after 2 seconds
+    setTimeout(pollForUpdate, pollInterval);
+
+  } catch (err: any) {
+    const errorMsg = Array.isArray(err.message)
+      ? err.message.join(', ')
+      : err.message || 'Failed to regenerate invoice';
+    setError(errorMsg);
+  } finally {
+    setRegenerating(false);
+  }
+};
 
   const username = user.mobileNumber || "user";
 
