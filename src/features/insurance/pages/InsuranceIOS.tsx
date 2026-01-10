@@ -181,7 +181,6 @@ const InsuranceIOS = () => {
         cashOrCommission: '',
         invoiceType: 'BUYER_INVOICE',
         notes: '',
-        invoiceType: 'BUYER_INVOICE', // Default
     });
 
     const [weightmentSlip, setWeightmentSlip] = useState<File | null>(null);
@@ -914,7 +913,7 @@ const InsuranceIOS = () => {
                                     <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border border-gray-200">
                                         <div className="flex items-center gap-2 overflow-hidden">
                                             <PaperClipIcon className="w-4 h-4 text-gray-500 shrink-0" />
-                                            <span className="text-xs sm:text-sm truncate max-w-[150px] sm:max-w-xs text-gray-700">
+                                            <span className="text-xs sm:text-sm truncate max-w-37.5 sm:max-w-xs text-gray-700">
                                                 {weightmentSlip.name}
                                             </span>
                                         </div>
@@ -960,7 +959,7 @@ const InsuranceIOS = () => {
                             <button
                                 type="submit"
                                 disabled={isSubmitting || (!inputValue.trim() && !isSelectInput)}
-                                className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-[40px] flex items-center justify-center ${editingMessageIndex !== null
+                                className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 flex items-center justify-center ${editingMessageIndex !== null
                                     ? 'bg-[#128C7E] hover:bg-[#0e6b5e]'
                                     : 'bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50'
                                     }`}
