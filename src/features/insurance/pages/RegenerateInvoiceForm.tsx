@@ -62,7 +62,7 @@ export const RegenerateInvoiceForm: React.FC<Props> = ({
                     hsnCode: data.hsnCode || '',
                     quantity: data.quantity || 0,
                     rate: data.rate || 0,
-                    amount: data.amount || 0,
+                    amount: data.quantity * data.rate,
                     truckNumber: data.truckNumber || data.vehicleNumber || '',
                     vehicleNumber: data.vehicleNumber || data.truckNumber || '',
                     weighmentSlipNote: data.weighmentSlipNote || '',
@@ -85,6 +85,7 @@ export const RegenerateInvoiceForm: React.FC<Props> = ({
         setError(null);
 
         try {
+            console.log('Form Data Submitted:', formData);
             const payload = {
                 invoiceId,
                 ...formData,

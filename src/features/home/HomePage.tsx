@@ -141,6 +141,7 @@ const handleRegenerateSubmit = async (e: React.FormEvent) => {
       supplierAddress,
       billToAddress,
       shipToAddress,
+      amount: (formData.quantity || 0) * (formData.rate || 0),
     };
 
     const updatedInvoice = await regenerateInvoice(payload);
