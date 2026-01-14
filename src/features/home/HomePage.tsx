@@ -700,7 +700,7 @@ const handleRegenerateSubmit = async (e: React.FormEvent) => {
         {/* BOTTOM NAV */}
         <div className="fixed bottom-0 left-0 right-0 bg-black text-white rounded-t-[28px] py-3">
           <div className="flex justify-around items-center text-xs">
-            <div className="flex flex-col items-center opacity-60">
+            <div className="flex flex-col items-center opacity-60 cursor-pointer" onClick={() => router.push('/explore')}>
               ⬜
               <span>Explore</span>
             </div>
@@ -712,7 +712,7 @@ const handleRegenerateSubmit = async (e: React.FormEvent) => {
               <span className="mt-1">Home</span>
             </div>
 
-            <div className="flex flex-col items-center opacity-60">
+            <div className="flex flex-col items-center opacity-60 cursor-pointer" onClick={() => router.push('/support')}>
               💬
               <span>Support</span>
             </div>

@@ -798,12 +798,12 @@ const InsuranceIOS = () => {
                 ref={chatContainerRef}
             >
                 {messages.map((message, index) => (
-                    <div key={index} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className="flex items-center gap-2 max-w-[80%]">
+                    <div key={index} className={`w-full flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className="flex items-start gap-2 max-w-[90%]">
                             {message.sender === 'user' && message.field && !isSubmitting && (
                                 <button
                                     onClick={() => handleEdit(message.field as string)}
-                                    className={`p-1.5 rounded-full shadow-sm transition-all ${editingMessageIndex === index
+                                    className={`p-1.5 rounded-full shadow-sm transition-all flex-shrink-0 ${editingMessageIndex === index
                                         ? 'bg-[#128C7E] text-white'
                                         : 'bg-white/80 text-gray-500 hover:bg-white hover:text-[#075E54]'
                                         }`}
@@ -813,12 +813,13 @@ const InsuranceIOS = () => {
                                 </button>
                             )}
                             <div
-                                className={`rounded-lg px-3 py-2 text-sm shadow-sm ${message.sender === 'user'
+                                className={`rounded-lg px-3 py-2 text-sm shadow-sm break-words ${message.sender === 'user'
                                     ? 'bg-[#dcf8c6] rounded-br-none text-black'
                                     : 'bg-white rounded-bl-none text-black'
                                     } ${editingMessageIndex === index ? 'ring-2 ring-[#128C7E]' : ''}`}
+                                style={{ minWidth: '60px', wordBreak: 'break-word' }}
                             >
-                                <p className="whitespace-pre-line leading-relaxed">{message.text}</p>
+                                <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
                             </div>
                         </div>
                     </div>

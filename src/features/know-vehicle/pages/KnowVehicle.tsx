@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowUpIcon } from '@heroicons/react/24/outline';
-import { getVehicleDetails } from '@/features/know-vehicle/api'; // Import the API
+import { getVehicleDetails } from '@/features/know-vehicle/api';
+import { upsertVehicleCondition, verifyVehicleCondition } from '@/features/know-vehicle/api.vehicle-condition';
 
 // --- Types ---
 interface Message {
@@ -20,109 +21,206 @@ const KnowVehiclePage = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // --- State ---
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            text: 'Please enter your vehicle number 🚗\nकृपया अपना वाहन नंबर दर्ज करें',
-            sender: 'bot',
-            timestamp: new Date()
-        }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState<string>('');
     const [showButtons, setShowButtons] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+    const [mainFlow, setMainFlow] = useState<'create' | 'verify' | null>(null);
+    const [questionIndex, setQuestionIndex] = useState(0);
+    type FormStateKey =
+        | 'vehicleNumber'
+        | 'permitStatus'
+        | 'driverLicense'
+        | 'vehicleCondition'
+        | 'challanClear'
+        | 'emiClear'
+        | 'fitnessClear';
+
+    const [formState, setFormState] = useState<{
+        vehicleNumber: string;
+        permitStatus: boolean | undefined;
+        driverLicense: boolean | undefined;
+        vehicleCondition: boolean | undefined;
+        challanClear: boolean | undefined;
+        emiClear: boolean | undefined;
+        fitnessClear: boolean | undefined;
+    }>({
+        vehicleNumber: '',
+        permitStatus: undefined,
+        driverLicense: undefined,
+        vehicleCondition: undefined,
+        challanClear: undefined,
+        emiClear: undefined,
+        fitnessClear: undefined,
+    });
+    const [verifyVehicleNumber, setVerifyVehicleNumber] = useState('');
 
     // --- Effects ---
+
     useEffect(() => {
         setIsMounted(true);
+        setMessages([
+            {
+                text: 'What would you like to do?\nआप क्या करना चाहेंगे?',
+                sender: 'bot',
+                timestamp: new Date(),
+                isQuestion: true
+            }
+        ]);
     }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // Reset chat when switching main flow
+    useEffect(() => {
+        if (mainFlow === null) return;
+        setMessages([]);
+        setInputValue('');
+        setIsProcessing(false);
+        setShowButtons(false);
+        setQuestionIndex(0);
+        setFormState({
+            vehicleNumber: '',
+            permitStatus: undefined,
+            driverLicense: undefined,
+            vehicleCondition: undefined,
+            challanClear: undefined,
+            emiClear: undefined,
+            fitnessClear: undefined,
+        });
+        setVerifyVehicleNumber('');
+        setTimeout(() => {
+            if (mainFlow === 'create') {
+                setMessages([
+                    { text: 'Let’s create/update vehicle condition.\nवाहन स्थिति बनाएं/अपडेट करें।', sender: 'bot', timestamp: new Date() },
+                    { text: 'Enter vehicle number:', sender: 'bot', timestamp: new Date(), isQuestion: true }
+                ]);
+            } else if (mainFlow === 'verify') {
+                setMessages([
+                    { text: 'Check vehicle condition.\nवाहन स्थिति जांचें।', sender: 'bot', timestamp: new Date() },
+                    { text: 'Enter vehicle number to verify:', sender: 'bot', timestamp: new Date(), isQuestion: true }
+                ]);
+            }
+        }, 200);
+    }, [mainFlow]);
+
     // --- Handlers ---
+    // --- Chat Flow Handler ---
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputValue.trim() || isProcessing) return;
-
-        const vehicleNum = inputValue.trim();
-        setIsProcessing(true); // Disable input while processing
-
-        // 1. Add User Message
-        const userMessage: Message = {
-            text: vehicleNum,
-            sender: 'user',
-            timestamp: new Date()
-        };
-        setMessages(prev => [...prev, userMessage]);
+        const userInput = inputValue.trim();
+        setIsProcessing(true);
+        setMessages(prev => [...prev, { text: userInput, sender: 'user', timestamp: new Date() }]);
         setInputValue('');
 
-        // 2. Add "Searching..." placeholder
-        setMessages(prev => [...prev, { text: '🔍 Checking details...', sender: 'bot', timestamp: new Date() }]);
+        // Main Option Selection
+        if (mainFlow === null) {
+            if (/create|update/i.test(userInput)) {
+                setMainFlow('create');
+            } else if (/check|verify|status/i.test(userInput)) {
+                setMainFlow('verify');
+            } else {
+                setMessages(prev => [...prev, { text: 'Please select a valid option: Create/Update or Check Vehicle Condition.', sender: 'bot', timestamp: new Date(), isQuestion: true }]);
+                setIsProcessing(false);
+            }
+            return;
+        }
 
-        try {
-            // 3. Call Real API
-            const data = await getVehicleDetails(vehicleNum);
+        // --- Create/Update Flow ---
+        if (mainFlow === 'create') {
+            const questions: { key: FormStateKey; text: string }[] = [
+                { key: 'vehicleNumber', text: 'Enter vehicle number:' },
+                { key: 'permitStatus', text: 'Is the permit valid? (Yes/No)' },
+                { key: 'driverLicense', text: 'Does the driver have a valid license? (Yes/No)' },
+                { key: 'vehicleCondition', text: 'Is the vehicle in good condition? (Yes/No)' },
+                { key: 'challanClear', text: 'Are there any pending challans? (Yes/No)' },
+                { key: 'emiClear', text: 'Is EMI cleared? (Yes/No)' },
+                { key: 'fitnessClear', text: 'Is fitness certificate valid? (Yes/No)' },
+            ];
 
-            // 4. Format the response text based on API data
-            const detailsText = `
-Permit – ${data.permitStatus}
-परमिट – ${data.permitStatus === 'Active' ? 'एक्टिव' : 'निष्क्रिय'}
+            const currentQ = questions[questionIndex];
+            let nextFormState = { ...formState };
 
-Driver License – ${data.driverLicenseStatus}
-ड्राइवर लाइसेंस – ${data.driverLicenseStatus === 'Available' ? 'उपलब्ध' : 'अनुपलब्ध'}
+            // Map answer to correct field
+            if (currentQ.key === 'vehicleNumber') {
+                nextFormState.vehicleNumber = userInput;
+            } else if (currentQ.key === 'challanClear') {
+                // Inverse mapping: Yes → false (pending), No → true (clear)
+                nextFormState.challanClear = /no|nahi|नहीं|nahin/i.test(userInput) ? true : false;
+            } else {
+                // Yes/No mapping for booleans
+                nextFormState[currentQ.key as Exclude<FormStateKey, 'vehicleNumber' | 'challanClear'>] = /yes|haan|हाँ|ha/i.test(userInput) ? true : false;
+            }
+            setFormState(nextFormState);
 
-Vehicle Condition – ${data.vehicleCondition}
-गाड़ी की स्थिति – ${data.vehicleCondition === 'OK' ? 'ठीक' : 'खराब'}
+            // Next question or submit
+            if (questionIndex < questions.length - 1) {
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { text: questions[questionIndex + 1].text, sender: 'bot', timestamp: new Date(), isQuestion: true }]);
+                    setQuestionIndex(q => q + 1);
+                    setIsProcessing(false);
+                }, 400);
+            } else {
+                // Submit to API
+                setMessages(prev => [...prev, { text: 'Saving vehicle condition...', sender: 'bot', timestamp: new Date() }]);
+                try {
+                    const res = await upsertVehicleCondition({
+                        vehicleNumber: nextFormState.vehicleNumber,
+                        permitStatus: nextFormState.permitStatus,
+                        driverLicense: nextFormState.driverLicense,
+                        vehicleCondition: nextFormState.vehicleCondition,
+                        challanClear: nextFormState.challanClear,
+                        emiClear: nextFormState.emiClear,
+                        fitnessClear: nextFormState.fitnessClear,
+                    });
+                    setMessages(prev => {
+                        const newHistory = prev.slice(0, -1);
+                        return [...newHistory, { text: '✅ Vehicle condition saved successfully!', sender: 'bot', timestamp: new Date() }];
+                    });
+                } catch (err: any) {
+                    setMessages(prev => {
+                        const newHistory = prev.slice(0, -1);
+                        return [...newHistory, { text: err?.message || '❌ Failed to save vehicle condition.', sender: 'bot', timestamp: new Date() }];
+                    });
+                }
+                setIsProcessing(false);
+            }
+            return;
+        }
 
-Challan – ${data.challanStatus}
-चालान – ${data.challanStatus}
+        // --- Verify Flow ---
+        if (mainFlow === 'verify') {
+            if (!verifyVehicleNumber) {
+                setVerifyVehicleNumber(userInput);
+                setMessages(prev => [...prev, { text: '🔍 Checking vehicle condition...', sender: 'bot', timestamp: new Date() }]);
+                try {
+                    // In the verify flow section, replace the success message with:
+                    const res = await verifyVehicleCondition(userInput);
+                    const verificationMessage = res.verified
+                        ? '✅ Vehicle is verified and in good condition!'
+                        : `❌ Vehicle verification failed. ${res.reason || ''}`;
 
-EMI – ${data.emiStatus}
-ईएमआई – ${data.emiStatus}
-
-Vehicle Fitness – ${data.fitnessStatus}
-गाड़ी फिटनेस – ${data.fitnessStatus}
-
-✅ ${data.isVerified ? 'You can take **MandiPlus Verified Vehicle**' : 'Vehicle Verification Pending'}
-✅ ${data.isVerified ? 'आप **MandiPlus सत्यापित वाहन** ले सकते हैं' : 'वाहन सत्यापन लंबित है'}
-            `.trim();
-
-            // 5. Update Chat with Details
-            setMessages(prev => {
-                const newHistory = prev.slice(0, -1); // Remove "Searching..."
-                return [
-                    ...newHistory,
-                    {
-                        text: detailsText,
-                        sender: 'bot',
-                        timestamp: new Date()
-                    },
-                    {
-                        text: `Want to see your vehicle? 🚚\nक्या आप अपना वाहन देखना चाहते हैं?\nKya aap apna vehicle dekhna chahte hain?`,
-                        sender: 'bot',
-                        isQuestion: true,
-                        timestamp: new Date()
-                    }
-                ];
-            });
-            setShowButtons(true);
-
-        } catch (err: any) {
-            // Handle Error
-            setMessages(prev => {
-                const newHistory = prev.slice(0, -1);
-                return [
-                    ...newHistory,
-                    {
-                        text: err.message || "❌ Vehicle details not found. Please check the number.",
-                        sender: 'bot',
-                        timestamp: new Date()
-                    }
-                ];
-            });
-            setIsProcessing(false); // Re-enable input so they can try again
+                    setMessages(prev => {
+                        const newHistory = prev.slice(0, -1);
+                        return [...newHistory, {
+                            text: verificationMessage,
+                            sender: 'bot',
+                            timestamp: new Date()
+                        }];
+                    });
+                } catch (err: any) {
+                    setMessages(prev => {
+                        const newHistory = prev.slice(0, -1);
+                        return [...newHistory, { text: err?.message || '❌ Failed to verify vehicle.', sender: 'bot', timestamp: new Date() }];
+                    });
+                }
+                setIsProcessing(false);
+            }
+            return;
         }
     };
 
@@ -135,7 +233,7 @@ Vehicle Fitness – ${data.fitnessStatus}
                 <img
                     src={imgSource}
                     alt="Vehicle"
-                    className="rounded-lg mt-2 max-w-[200px] sm:max-w-[240px] w-full object-cover"
+                    className="rounded-lg mt-2 max-w-50 sm:max-w-60 w-full object-cover"
                 />
             );
         }
@@ -147,11 +245,60 @@ Vehicle Fitness – ${data.fitnessStatus}
 
     if (!isMounted) return null;
 
+    // --- Radio Option UI for Main Flow ---
+    if (mainFlow === null) {
+        return (
+            <div className="flex flex-col h-screen bg-[#efeae2]">
+                {/* HEADER */}
+                <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center shadow z-10">
+                    <button onClick={() => router.push('/home')} className="mr-2 sm:mr-3 p-1 rounded-full hover:bg-[#128C7E] touch-manipulation">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm sm:text-base truncate">Know Your Vehicle</p>
+                        <p className="text-xs opacity-80">Mandi Plus</p>
+                    </div>
+                </div>
+                {/* Chat UI */}
+                <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
+                    style={{ backgroundColor: "#E5DDD5", backgroundImage: "url('/images/whatsapp-bg.png')", backgroundRepeat: 'repeat' }}>
+                    {messages.map((message, index) => (
+                        <div key={index} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] sm:max-w-[90%] px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg shadow-sm
+                                ${message.sender === 'user' ? 'bg-[#DCF8C6] rounded-tr-none text-black' : 'bg-white rounded-tl-none text-black'}`}>
+                                <div className="text-gray-800">{renderMessageContent(message)}</div>
+                                <div className="text-right mt-1 text-[10px] text-gray-500 opacity-70">
+                                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {message.sender === 'user' && ' ✓✓'}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                </div>
+                {/* Radio Option UI */}
+                <div className="bg-[#F0F0F0] px-2 sm:px-3 py-4 border-t z-10 flex flex-col gap-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="radio" name="mainFlow" value="create" onChange={() => setMainFlow('create')} />
+                        <span className="text-black font-medium">Create / Update Vehicle Condition</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="radio" name="mainFlow" value="verify" onChange={() => setMainFlow('verify')} />
+                        <span className="text-black font-medium">Check Vehicle Condition</span>
+                    </label>
+                </div>
+            </div>
+        );
+    }
+
+    // --- Main Chat UI for Flows ---
     return (
         <div className="flex flex-col h-screen bg-[#efeae2]">
             {/* HEADER */}
             <div className="bg-[#075E54] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center shadow z-10">
-                <button onClick={() => router.push('/home')} className="mr-2 sm:mr-3 p-1 rounded-full hover:bg-[#128C7E] touch-manipulation">
+                <button onClick={() => setMainFlow(null)} className="mr-2 sm:mr-3 p-1 rounded-full hover:bg-[#128C7E] touch-manipulation">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
@@ -160,22 +307,7 @@ Vehicle Fitness – ${data.fitnessStatus}
                     <p className="font-medium text-sm sm:text-base truncate">Know Your Vehicle</p>
                     <p className="text-xs opacity-80">Mandi Plus</p>
                 </div>
-                {/* Header Icons */}
-                <div className="flex gap-2 sm:gap-4">
-                    <div className="p-1 hover:bg-[#128C7E] rounded-full cursor-pointer touch-manipulation">
-                        <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
-                            <path d="M3 6a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
-                        </svg>
-                    </div>
-                    <div className="p-1 hover:bg-[#128C7E] rounded-full cursor-pointer touch-manipulation">
-                        <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                        </svg>
-                    </div>
-                </div>
             </div>
-
             {/* CHAT AREA */}
             <div
                 className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3 relative"
@@ -195,37 +327,7 @@ Vehicle Fitness – ${data.fitnessStatus}
                         >
                             <div className="text-gray-800">
                                 {renderMessageContent(message)}
-
-                                {message.isQuestion && showButtons && (
-                                    <div className="flex gap-2 mt-3 flex-wrap">
-                                        <button
-                                            className="bg-[#25D366] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm hover:bg-[#20bd5a] transition-colors touch-manipulation"
-                                            onClick={() => {
-                                                setShowButtons(false);
-                                                setMessages(prev => [
-                                                    ...prev,
-                                                    { text: "Here's your vehicle 🚚", sender: 'bot', timestamp: new Date() },
-                                                    // Pass the real image URL from the API if available, else standard image
-                                                    { hasImage: true, sender: 'bot', timestamp: new Date() }
-                                                ]);
-                                                setIsProcessing(false); // Allow new searches
-                                            }}
-                                        >
-                                            Yes / हाँ / Haan
-                                        </button>
-                                        <button
-                                            className="bg-gray-200 text-gray-700 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm hover:bg-gray-300 transition-colors touch-manipulation"
-                                            onClick={() => {
-                                                setShowButtons(false);
-                                                setIsProcessing(false); // Allow new searches
-                                            }}
-                                        >
-                                            No / नहीं / Nahi
-                                        </button>
-                                    </div>
-                                )}
                             </div>
-
                             <div className="text-right mt-1 text-[10px] text-gray-500 opacity-70">
                                 {new Date(message.timestamp).toLocaleTimeString([], {
                                     hour: '2-digit',
@@ -238,21 +340,20 @@ Vehicle Fitness – ${data.fitnessStatus}
                 ))}
                 <div ref={messagesEndRef} />
             </div>
-
             {/* INPUT */}
             <div className="bg-[#F0F0F0] px-2 sm:px-3 py-2 border-t z-10">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                     <input
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Enter vehicle number..."
+                        placeholder={mainFlow === 'create' ? 'Type your answer...' : 'Enter vehicle number...'}
                         className="flex-1 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm focus:outline-none bg-white text-black border border-gray-200"
                         disabled={isProcessing}
                     />
                     <button
                         type="submit"
                         disabled={isProcessing}
-                        className={`p-2 sm:p-2.5 rounded-full text-white transition-colors min-w-[40px] sm:min-w-[44px] flex items-center justify-center ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#25D366] hover:bg-[#20bd5a]'
+                        className={`p-2 sm:p-2.5 rounded-full text-white transition-colors min-w-10 sm:min-w-11 flex items-center justify-center ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#25D366] hover:bg-[#20bd5a]'
                             }`}
                     >
                         <ArrowUpIcon className="h-5 w-5" />
