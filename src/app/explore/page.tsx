@@ -29,7 +29,7 @@ const ExplorePage = () => {
       <div className="absolute -bottom-40 -right-40 w-140 h-140 bg-[#e65100]/20 rounded-full blur-[180px]" />
 
       {/* Header with back button and language selector */}
-      <div className="fixed top-6 left-0 right-0 z-30 px-0 flex items-center">
+      <div className="fixed top-6 left-0 right-0 z-30 px-0 flex items-center justify-center">
         {/* Back Button */}
         <button
           onClick={() => router.push("/")}
@@ -71,7 +71,7 @@ const ExplorePage = () => {
       </div>
 
       {/* PDF Viewer – Full Page */}
-      <div className="pt-20 px-0 pb-0 w-full max-w-6xl mx-0">
+      <div className="pt-20 px-0 pb-0 w-full mx-0">
         <div className="w-full h-[calc(100vh)] rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-inner">
           <div className="w-full h-full overflow-auto p-0">
             <iframe
