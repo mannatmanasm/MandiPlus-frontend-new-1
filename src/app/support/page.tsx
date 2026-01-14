@@ -18,7 +18,11 @@ const SupportPage = () => {
         </button>
         <h1 className="text-3xl font-bold text-[#4309ac] mb-4">Support</h1>
         <p className="text-gray-700 text-lg mb-6 text-center">
-          <span className="font-semibold text-[#4309ac]">All claim-related communication must be made via email or phone:</span>
+          <span className="font-semibold text-[#4309ac]">All Insurance & Claim-related communication. 
+          
+
+WhatsApp Send "Hi" to 
+          </span>
         </p>
         <div className="flex flex-col items-center gap-4 w-full">
           <a href="tel:+919900186757" className="flex items-center gap-2 bg-[#f3f0fa] border border-[#e0d7fc] rounded-xl px-4 py-3 w-full justify-center hover:bg-[#ede7fa] transition">
