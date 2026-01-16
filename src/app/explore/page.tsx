@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type LangCode = "en" | "hi" | "kn";
@@ -11,29 +11,27 @@ const brochureMap: Record<LangCode, string> = {
 };
 
 const languageOptions = [
-  { code: "en", label: "English", icon: "🇬🇧" },
-  { code: "hi", label: "हिंदी", icon: "🇮🇳" },
-  { code: "kn", label: "ಕನ್ನಡ", icon: "🇮🇳" },
+  { code: "en", label: "English" },
+  { code: "hi", label: "हिंदी" },
+  { code: "kn", label: "ಕನ್ನಡ" },
 ];
 
 const ExplorePage = () => {
   const router = useRouter();
-
-  // Hindi by default
-  const [lang, setLang] = React.useState<LangCode>("hi");
+  const [lang, setLang] = useState<LangCode>("hi"); // Default Hindi
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-linear-to-br from-[#f5f3ff] via-[#faf8ff] to-white">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-white">
       {/* Background glow */}
-      <div className="absolute -top-32 -left-32 w-130 h-130 bg-[#4309ac]/20 rounded-full blur-[160px]" />
-      <div className="absolute -bottom-40 -right-40 w-140 h-140 bg-[#e65100]/20 rounded-full blur-[180px]" />
+      <div className="absolute -top-32 -left-32 w-[520px] h-[520px] bg-[#4309ac]/20 rounded-full blur-[160px] pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-[560px] h-[560px] bg-[#e65100]/20 rounded-full blur-[180px] pointer-events-none" />
 
       {/* Header with back button and language selector */}
-      <div className="fixed top-6 left-0 right-0 z-30 px-0 flex items-center justify-center">
+      <div className="fixed top-3 sm:top-6 left-0 right-0 z-30 px-3 sm:px-4 flex items-center justify-between">
         {/* Back Button */}
         <button
           onClick={() => router.push("/")}
-          className="z-30 flex items-center gap-1 text-[#4309ac] hover:text-[#350889] font-medium text-sm px-3 py-2 rounded-full bg-white/90 border border-[#e0d7fc] hover:bg-[#ede7fa] shadow transition mx-2"
+          className="flex items-center gap-1 text-[#4309ac] hover:text-[#350889] font-medium text-sm px-3 py-2 rounded-full bg-white/90 border border-[#e0d7fc] hover:bg-[#ede7fa] shadow transition"
           aria-label="Back to Home"
         >
           <svg
@@ -45,44 +43,43 @@ const ExplorePage = () => {
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
+          <span className="hidden sm:inline">Back</span>
         </button>
 
         {/* Language Selector */}
-        <div className="relative flex gap-1 p-1 bg-gray-100/90 rounded-full shadow-inner backdrop-blur">
+        <div className="flex gap-1 p-1 bg-white/90 rounded-full shadow-md backdrop-blur border border-gray-200">
           {languageOptions.map((option) => {
             const active = lang === option.code;
             return (
               <button
                 key={option.code}
                 onClick={() => setLang(option.code as LangCode)}
-                className={`relative px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1.5 transition-all duration-300 ${active
-                  ? "text-white"
-                  : "text-gray-600 hover:text-gray-900"
-                  }`}
+                className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all duration-300 ${
+                  active ? "text-white" : "text-gray-600 hover:text-gray-900"
+                }`}
               >
                 {active && (
-                  <span className="absolute inset-0 z-1 rounded-full bg-[#4309ac] shadow-md" />
+                  <span className="absolute inset-0 rounded-full bg-[#4309ac] shadow-md" />
                 )}
-                <span className="z-5">{option.label}</span>
+                <span className="relative z-10">{option.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* PDF Viewer – Full Page */}
-      <div className="pt-20 px-0 pb-0 w-full mx-0">
-        <div className="w-full h-[calc(100vh)] rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-inner">
-          <div className="w-full h-full overflow-auto p-0">
-            <iframe
-              key={lang}
-              src={`${brochureMap[lang]}#toolbar=0&navpanes=0&view=FitH`}
-              title="Brochure Viewer"
-              className="w-full h-full border-0"
-              style={{ minHeight: 'calc(100vh - 12rem)' }}
-            />
-          </div>
-        </div>
+      {/* PDF Viewer - Full Screen for both Mobile & Desktop */}
+      <div className="w-full h-screen pt-16 sm:pt-20">
+        <iframe
+          key={lang}
+          src={`${brochureMap[lang]}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+          title="Mandi Plus Brochure"
+          className="w-full h-full border-0"
+          style={{ 
+            minHeight: '100vh',
+            display: 'block'
+          }}
+        />
       </div>
     </div>
   );
