@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import {
     ChartBarIcon,
@@ -8,17 +8,19 @@ import {
     HomeIcon,
     UsersIcon,
     XMarkIcon,
+    ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { Bars3Icon } from '@heroicons/react/16/solid';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAdmin } from '../context/AdminContext';
-import { useState } from 'react';
 
+// Updated Navigation List
 const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
     { name: 'Users', href: '/admin/users', icon: UsersIcon },
     { name: 'Insurance Forms', href: '/admin/insurance-forms', icon: FolderIcon },
+    { name: 'Claim Requests', href: '/admin/claims', icon: ClipboardDocumentListIcon },
 ];
 
 function classNames(...classes: string[]) {
@@ -33,6 +35,7 @@ export default function AdminSidebar() {
     return (
         <>
             <div>
+                {/* Mobile Sidebar */}
                 <Transition.Root show={sidebarOpen} as={Fragment}>
                     <Dialog as="div" className="relative z-40 lg:hidden" onClose={setSidebarOpen}>
                         <Transition.Child
@@ -95,6 +98,7 @@ export default function AdminSidebar() {
                                                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                                                             'group flex items-center rounded-md px-2 py-2 text-base font-medium'
                                                         )}
+                                                        onClick={() => setSidebarOpen(false)} // Close drawer on link click
                                                     >
                                                         <item.icon
                                                             className={classNames(
@@ -163,7 +167,7 @@ export default function AdminSidebar() {
                                             <span className="text-green-600 font-medium">A</span>
                                         </div>
                                     </div>
-                                    <div className="ml-3">
+                                    <div className="ml-3 text-left">
                                         <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
                                             Admin
                                         </p>
@@ -176,6 +180,8 @@ export default function AdminSidebar() {
                         </div>
                     </div>
                 </div>
+
+                {/* Mobile sidebar toggle button wrapper (Hidden on desktop) */}
                 <div className="flex flex-1 flex-col lg:pl-64">
                     <div className="sticky top-0 z-10 bg-white pl-1 pt-1 sm:pl-3 sm:pt-3 lg:hidden">
                         <button

@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
-
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -17,8 +16,9 @@ interface User {
   totalForms: number;
 }
 
-interface InsuranceForm {
+export interface InsuranceForm {
   _id: string;
+  id?: string; // Handle both _id (mongoose) and id (typeorm) depending on backend
   user: {
     _id: string;
     mobileNumber: string;
@@ -35,6 +35,9 @@ interface InsuranceForm {
   weightSlipPdfUrl?: string;
   createdAt: string;
   updatedAt: string;
+  // Added fields relevant to claims
+  truckNumber?: string;
+  vehicleNumber?: string;
 }
 
 interface LoginResponse {
@@ -46,7 +49,6 @@ interface LoginResponse {
   };
 }
 
-// interface for the filter params
 export interface InvoiceFilterParams {
   invoiceType?: string;
   startDate?: string;
@@ -55,6 +57,45 @@ export interface InvoiceFilterParams {
   buyerName?: string;
   userId?: string;
 }
+
+// --- ✅ NEW: Claim Request Interfaces ---
+
+export enum ClaimStatus {
+  PENDING = 'PENDING',
+  SURVEYOR_ASSIGNED = 'SURVEYOR_ASSIGNED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  SETTLED = 'SETTLED',
+}
+
+export interface ClaimRequest {
+  id: string;
+  status: ClaimStatus;
+  createdAt: string;
+  invoice: InsuranceForm;
+  surveyorName?: string;
+  surveyorContact?: string;
+  notes?: string;
+  claimFormUrl?: string;
+  supportedMedia?: string[];
+}
+
+export interface FilterClaimRequestsDto {
+  status?: ClaimStatus;
+  invoiceId?: string;
+  truckNumber?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface UpdateClaimStatusDto {
+  status: ClaimStatus;
+  surveyorName?: string;
+  surveyorContact?: string;
+  notes?: string;
+}
+
+// ----------------------------------------
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
@@ -95,7 +136,6 @@ class AdminApi {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Handle unauthorized access
           if (typeof window !== "undefined") {
             localStorage.removeItem("adminToken");
             window.location.href = "/admin/login";
@@ -201,7 +241,6 @@ class AdminApi {
     }
   };
 
-  // New method: Filter invoices based on query params
   public filterInvoices = async (
     filters: InvoiceFilterParams
   ): Promise<ApiResponse<any[]>> => {
@@ -226,7 +265,6 @@ class AdminApi {
     }
   };
 
-  // New method: Export invoices to Excel
   public exportInvoices = async (body: {
     invoiceType?: string;
     startDate?: string;
@@ -244,10 +282,124 @@ class AdminApi {
     }
   };
 
+  // ============================================================
+  // ✅ NEW: CLAIM REQUESTS MANAGEMENT (ADMIN)
+  // ============================================================
+
+  /**
+   * Get all claims with filters (Status, Truck Number, Invoice ID)
+   */
+  public getClaims = async (
+    filters?: FilterClaimRequestsDto
+  ): Promise<ApiResponse<ClaimRequest[]>> => {
+    try {
+      const response = await this.client.get<ClaimRequest[]>(
+        "/claim-requests/admin",
+        {
+          params: filters,
+        }
+      );
+
+      // Normalize response if backend returns raw array vs ApiResponse object
+      const data = Array.isArray(response.data) ? response.data : response.data;
+
+      return {
+        success: true,
+        data: data as any,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to fetch claims",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Get a single claim by ID
+   */
+  public getClaimById = async (
+    id: string
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.get<ClaimRequest>(
+        `/claim-requests/${id}`
+      );
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to fetch claim details",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Create a claim on behalf of a user using Truck Number.
+   * This finds the user's latest invoice for that truck and attaches the claim.
+   */
+  public createClaimForUser = async (
+    truckNumber: string
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.post<ClaimRequest>(
+        "/claim-requests/by-truck",
+        { truckNumber }
+      );
+      return {
+        success: true,
+        data: response.data,
+        message: "Claim created successfully",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to create claim",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Update claim status (Assign Surveyor, Approve, Reject, Settle)
+   */
+  public updateClaimStatus = async (
+    id: string,
+    updateData: UpdateClaimStatusDto
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.patch<ClaimRequest>(
+        `/claim-requests/${id}/status`,
+        updateData
+      );
+      return {
+        success: true,
+        data: response.data,
+        message: "Claim status updated successfully",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update claim status",
+        error: error.message,
+      };
+    }
+  };
+
+  // ============================================================
+  // END CLAIM REQUESTS
+  // ============================================================
+
   public getDashboardStats = async (): Promise<
     ApiResponse<{
       totalUsers: number;
       totalForms: number;
+      totalClaims: number; // Added claims count
       recentActivity: Array<{
         id: string;
         type: string;
@@ -257,23 +409,25 @@ class AdminApi {
     }>
   > => {
     try {
-      // In a real implementation, you would have a dedicated endpoint for dashboard stats
-      // For now, we'll fetch both users and forms and calculate the counts
-      const [usersResponse, formsResponse] = await Promise.all([
+      const [usersResponse, formsResponse, claimsResponse] = await Promise.all([
         this.getUsers(),
         this.getInsuranceForms(),
+        this.getClaims(), // Fetch claims for stats
       ]);
 
       return {
         success: true,
         data: {
           totalUsers: usersResponse.success
-            ? (usersResponse.data as any)?.count || 0
+            ? (usersResponse.data as any)?.count || (usersResponse.data as any)?.users?.length || 0
             : 0,
           totalForms: formsResponse.success
-            ? (formsResponse.data as any)?.count || 0
+            ? (formsResponse.data as any)?.count || (formsResponse.data as any)?.forms?.length || 0
             : 0,
-          recentActivity: [], // This would come from a dedicated endpoint
+          totalClaims: claimsResponse.success && Array.isArray(claimsResponse.data)
+            ? claimsResponse.data.length
+            : 0,
+          recentActivity: [],
         },
       };
     } catch (error: any) {
