@@ -4,6 +4,7 @@ import "./globals.css";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from "@/features/auth/context/AuthContext";
+import ConsentGuard from "@/shared/components/ConsentGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,8 +38,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-          {children}
-          <ToastContainer />
+          <ConsentGuard>
+            {children}
+            <ToastContainer />
+          </ConsentGuard>
         </AuthProvider>
       </body>
     </html>
