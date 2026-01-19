@@ -3,7 +3,20 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "../auth/components/ProtectedRoute";
-import { getMyInsuranceForms, regenerateInvoice, InsuranceForm, RegenerateInvoicePayload, uploadWeighmentSlips, updateInvoice } from "../insurance/api";
+import {
+  getMyInsuranceForms,
+  regenerateInvoice,
+  InsuranceForm,
+  RegenerateInvoicePayload,
+  uploadWeighmentSlips,
+  updateInvoice,
+  getMyClaimsForms,
+  ClaimRequest,
+  CreateDamageFormDto,
+  createClaimByTruck,
+  uploadClaimMedia,
+  submitDamageForm
+} from "../insurance/api";
 import 'cropperjs/dist/cropper.css';
 import Cropper, { ReactCropperElement } from "react-cropper";
 import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -26,8 +39,37 @@ const HomePage = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<InsuranceForm | null>(null);
   const [showRegenerateForm, setShowRegenerateForm] = useState(false);
 
-  // --- NEW: Cropper & File State ---
+  // --- ✅ NEW: Claims States ---
+  const [claims, setClaims] = useState<ClaimRequest[]>([]);
+  const [loadingClaims, setLoadingClaims] = useState(false);
+  const [showClaimsModal, setShowClaimsModal] = useState(false);
+  const [newClaimTruckNo, setNewClaimTruckNo] = useState('');
+  const [creatingClaim, setCreatingClaim] = useState(false);
+
+  // --- ✅ NEW: Damage Form States ---
+  const [showDamageModal, setShowDamageModal] = useState(false);
+  const [selectedClaimForDamage, setSelectedClaimForDamage] = useState<ClaimRequest | null>(null);
+  const [damageFormData, setDamageFormData] = useState<CreateDamageFormDto>({
+    damageCertificateDate: new Date().toISOString().split('T')[0],
+    transportReceiptMemoNo: '',
+    transportReceiptDate: '',
+    loadedWeightKg: 0,
+    productName: '',
+    fromParty: '',
+    forParty: '',
+    accidentDate: '',
+    accidentLocation: '',
+    accidentDescription: '',
+    agreedDamageAmountNumber: 0,
+    agreedDamageAmountWords: '',
+    authorizedSignatoryName: '',
+  });
+
+  // --- Cropper & File State ---
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const claimMediaRef = useRef<HTMLInputElement>(null); // ✅ NEW: Ref for claim uploads
+  const [activeClaimIdForUpload, setActiveClaimIdForUpload] = useState<string | null>(null); // ✅ NEW
+
   const cropperRef = useRef<ReactCropperElement>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isCropping, setIsCropping] = useState(false);
@@ -91,9 +133,109 @@ const HomePage = () => {
     }
   };
 
+  // --- NEW: Fetch Claims ---
+  const fetchClaims = async () => {
+    setLoadingClaims(true);
+    try {
+      const data = await getMyClaimsForms();
+      setClaims(data);
+    } catch (err: any) {
+      console.error('Failed to fetch claims:', err);
+      setError(err.message || 'Failed to load claims');
+    } finally {
+      setLoadingClaims(false);
+    }
+  };
+
   const handleOpenInvoiceModal = () => {
     setShowInvoiceModal(true);
     fetchInvoices();
+  };
+
+  // --- NEW: Open Claims Modal ---
+  const handleOpenClaimsModal = () => {
+    setShowClaimsModal(true);
+    fetchClaims();
+  };
+
+  // --- NEW: Create Claim Handler ---
+  const handleCreateClaim = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClaimTruckNo) return;
+    setCreatingClaim(true);
+    try {
+      await createClaimByTruck(newClaimTruckNo);
+      setNewClaimTruckNo('');
+      await fetchClaims();
+      alert("Claim created successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to create claim. Ensure invoice exists.");
+    } finally {
+      setCreatingClaim(false);
+    }
+  };
+
+  // --- NEW: Upload Media Handler ---
+  const handleClaimMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && activeClaimIdForUpload) {
+      try {
+        const originalFiles = Array.from(e.target.files);
+
+        const uploadFiles = originalFiles.map((file) => {
+          const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const safeType = `application/hack.${extension}`;
+          return new File([file], file.name, { type: safeType });
+        });
+      
+
+        await uploadClaimMedia(activeClaimIdForUpload, uploadFiles);
+
+        alert("Files uploaded successfully!");
+        fetchClaims();
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        const msg = err.response?.data?.message || err.message || "Failed to upload files.";
+        alert(`Upload Failed: ${msg}`);
+      } finally {
+        setActiveClaimIdForUpload(null);
+        if (claimMediaRef.current) claimMediaRef.current.value = '';
+      }
+    }
+  };
+
+  // --- NEW: Damage Form Logic ---
+  const openDamageForm = (claim: ClaimRequest) => {
+    setSelectedClaimForDamage(claim);
+    setDamageFormData({
+      damageCertificateDate: new Date().toISOString().split('T')[0],
+      transportReceiptMemoNo: claim.invoice?.invoiceNumber || '',
+      transportReceiptDate: claim.invoice?.invoiceDate || '',
+      loadedWeightKg: claim.invoice?.quantity || 0,
+      productName: claim.invoice?.productName?.[0] || '',
+      fromParty: claim.invoice?.supplierName || '',
+      forParty: claim.invoice?.billToName || '',
+      accidentDate: '',
+      accidentLocation: '',
+      accidentDescription: '',
+      agreedDamageAmountNumber: 0,
+      agreedDamageAmountWords: '',
+      authorizedSignatoryName: '',
+    });
+    setShowDamageModal(true);
+  };
+
+  const submitDamageFormHandler = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClaimForDamage) return;
+    try {
+      await submitDamageForm(selectedClaimForDamage.id, damageFormData);
+      alert("Damage form submitted! PDF generation queued.");
+      setShowDamageModal(false);
+      fetchClaims();
+    } catch (err: any) {
+      const errorMsg = Array.isArray(err.message) ? err.message.join(', ') : err.message || "Failed to submit damage form";
+      alert(`Error: ${errorMsg}`);
+    }
   };
 
   // --- NEW: Cropper Helper Functions ---
@@ -158,69 +300,69 @@ const HomePage = () => {
     setShowRegenerateForm(true);
   };
 
-// --- NEW: Updated Submit Logic ---
-const handleRegenerateSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!selectedInvoice) return;
+  // --- NEW: Updated Submit Logic ---
+  const handleRegenerateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoice) return;
 
-  setRegenerating(true);
-  setError(null);
+    setRegenerating(true);
+    setError(null);
 
-  try {
-    // 1. Upload Image if exists
-    if (weightmentSlip) {
-      await uploadWeighmentSlips(selectedInvoice.id, [weightmentSlip]);
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for PDF generation
+    try {
+      // 1. Upload Image if exists
+      if (weightmentSlip) {
+        await uploadWeighmentSlips(selectedInvoice.id, [weightmentSlip]);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for PDF generation
+      }
+
+      // 2. Prepare FormData
+      const payload = new FormData();
+      const append = (key: string, value: any) => payload.append(key, String(value ?? ''));
+
+      append('invoiceType', formData.invoiceType);
+      append('invoiceDate', formData.invoiceDate);
+      append('supplierName', formData.supplierName);
+      append('placeOfSupply', formData.placeOfSupply);
+      append('billToName', formData.billToName);
+      append('shipToName', formData.shipToName);
+      append('hsnCode', formData.hsnCode);
+      append('vehicleNumber', formData.vehicleNumber);
+      append('truckNumber', formData.truckNumber);
+      append('weighmentSlipNote', formData.weighmentSlipNote);
+      append('productName', formData.productName);
+      append('quantity', formData.quantity);
+      append('rate', formData.rate);
+      append('amount', (Number(formData.quantity) || 0) * (Number(formData.rate) || 0));
+
+      const processArray = (key: string, arr: any) => {
+        const valid = Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : [String(arr || '')];
+        valid.forEach(v => payload.append(key, v));
+      };
+      processArray('supplierAddress', formData.supplierAddress);
+      processArray('billToAddress', formData.billToAddress);
+      processArray('shipToAddress', formData.shipToAddress);
+
+      // 3. Update Text
+      await updateInvoice(selectedInvoice.id, payload);
+
+      // 4. Final Wait & Refresh
+      const fresh = await getMyInsuranceForms();
+      setInvoices(fresh);
+
+      alert('✅ Invoice updated successfully!');
+      setShowRegenerateForm(false);
+      setSelectedInvoice(null);
+      setWeightmentSlip(null);
+
+    } catch (err: any) {
+      const errorMsg = Array.isArray(err.message)
+        ? err.message.join(', ')
+        : err.message || 'Failed to regenerate invoice';
+      setError(errorMsg);
+    } finally {
+      setRegenerating(false);
     }
-
-    // 2. Prepare FormData
-    const payload = new FormData();
-    const append = (key: string, value: any) => payload.append(key, String(value ?? ''));
-
-    append('invoiceType', formData.invoiceType);
-    append('invoiceDate', formData.invoiceDate);
-    append('supplierName', formData.supplierName);
-    append('placeOfSupply', formData.placeOfSupply);
-    append('billToName', formData.billToName);
-    append('shipToName', formData.shipToName);
-    append('hsnCode', formData.hsnCode);
-    append('vehicleNumber', formData.vehicleNumber);
-    append('truckNumber', formData.truckNumber);
-    append('weighmentSlipNote', formData.weighmentSlipNote);
-    append('productName', formData.productName);
-    append('quantity', formData.quantity);
-    append('rate', formData.rate);
-    append('amount', (Number(formData.quantity) || 0) * (Number(formData.rate) || 0));
-
-    const processArray = (key: string, arr: any) => {
-      const valid = Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : [String(arr || '')];
-      valid.forEach(v => payload.append(key, v));
-    };
-    processArray('supplierAddress', formData.supplierAddress);
-    processArray('billToAddress', formData.billToAddress);
-    processArray('shipToAddress', formData.shipToAddress);
-
-    // 3. Update Text
-    await updateInvoice(selectedInvoice.id, payload);
-
-    // 4. Final Wait & Refresh
-    const fresh = await getMyInsuranceForms();
-    setInvoices(fresh);
-
-    alert('✅ Invoice updated successfully!');
-    setShowRegenerateForm(false);
-    setSelectedInvoice(null);
-    setWeightmentSlip(null);
-
-  } catch (err: any) {
-    const errorMsg = Array.isArray(err.message)
-      ? err.message.join(', ')
-      : err.message || 'Failed to regenerate invoice';
-    setError(errorMsg);
-  } finally {
-    setRegenerating(false);
-  }
-};
+  };
 
   const username = user.mobileNumber || "user";
 
@@ -335,13 +477,21 @@ const handleRegenerateSubmit = async (e: React.FormEvent) => {
               </p>
             </div>
 
-            {/* Updated My Policies Card */}
             <div
               className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
               onClick={handleOpenInvoiceModal}
             >
               <h4 className="font-semibold mb-1 text-slate-800">My Policies</h4>
               <p className="text-xs text-gray-500">View & Edit forms</p>
+            </div>
+
+            {/* ✅ NEW: My Claims Card */}
+            <div
+              className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
+              onClick={handleOpenClaimsModal}
+            >
+              <h4 className="font-semibold mb-1 text-slate-800">My Claims</h4>
+              <p className="text-xs text-gray-500">View & File Claims</p>
             </div>
           </div>
         </div>
@@ -426,6 +576,247 @@ const handleRegenerateSubmit = async (e: React.FormEvent) => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ NEW: CLAIMS MODAL */}
+        {showClaimsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl z-10">
+                <h3 className="text-xl font-bold text-slate-800">My Claims</h3>
+                <button onClick={() => setShowClaimsModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+              </div>
+
+              <div className="p-6">
+                {/* Create New Claim Section */}
+                <div className="bg-purple-50 p-4 rounded-2xl mb-6">
+                  <h4 className="font-semibold text-slate-800 mb-2">Create New Claim</h4>
+                  <form onSubmit={handleCreateClaim} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter Truck Number (e.g. MH12AB1234)"
+                      value={newClaimTruckNo}
+                      onChange={(e) => setNewClaimTruckNo(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#4309ac] text-black"
+                    />
+                    <button
+                      type="submit"
+                      disabled={creatingClaim}
+                      className="bg-[#4309ac] text-white px-4 py-2 rounded-xl font-medium disabled:opacity-50"
+                    >
+                      {creatingClaim ? '...' : 'Create'}
+                    </button>
+                  </form>
+                  <p className="text-xs text-gray-500 mt-2">Latest invoice for this truck will be used.</p>
+                </div>
+
+                {/* Claims List */}
+                {loadingClaims ? (
+                  <div className="text-center py-8 text-gray-500">Loading claims...</div>
+                ) : claims.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No claims found</div>
+                ) : (
+                  <div className="space-y-4">
+                    {claims.map((claim) => (
+                      <div key={claim.id} className="border rounded-2xl p-4 hover:shadow-md transition-shadow relative">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold mb-1 ${claim.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              claim.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                              {claim.status.replace('_', ' ')}
+                            </span>
+                            <h4 className="font-semibold text-slate-800">
+                              {claim.invoice?.invoiceNumber || "Invoice N/A"}
+                            </h4>
+                            <p className="text-xs text-gray-500">Created: {new Date(claim.createdAt).toLocaleDateString()}</p>
+                            {claim.surveyorName && (
+                              <p className="text-xs text-purple-700 mt-1">👷 Surveyor: {claim.surveyorName} ({claim.surveyorContact})</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <button
+                            onClick={() => {
+                              setActiveClaimIdForUpload(claim.id);
+                              claimMediaRef.current?.click();
+                            }}
+                            className="bg-gray-100 text-gray-700 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-200 flex items-center gap-1"
+                          >
+                            📷 Upload Photos
+                          </button>
+
+                          <button
+                            onClick={() => openDamageForm(claim)}
+                            className="bg-red-50 text-red-700 px-3 py-2 rounded-xl text-xs font-medium hover:bg-red-100 border border-red-100"
+                          >
+                            📝 Damage Form
+                          </button>
+
+                          {claim.claimFormUrl && (
+                            <a href={claim.claimFormUrl} target="_blank" className="bg-green-50 text-green-700 px-3 py-2 rounded-xl text-xs font-medium border border-green-100">
+                              📄 View Cert
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Hidden Input for Claim Media Upload */}
+            <input
+              type="file"
+              multiple
+              ref={claimMediaRef}
+              className="hidden"
+              onChange={handleClaimMediaUpload}
+              accept="image/*,application/pdf"
+            />
+          </div>
+        )}
+
+        {/* ✅ NEW: DAMAGE FORM MODAL */}
+        {showDamageModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
+                <h3 className="text-xl font-bold text-slate-800">Damage Certificate</h3>
+                <button onClick={() => setShowDamageModal(false)} className="text-gray-500">✕</button>
+              </div>
+
+              <form onSubmit={submitDamageFormHandler} className="p-6 space-y-4">
+
+                {/* 1. Basic Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Date</label>
+                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.damageCertificateDate}
+                      onChange={e => setDamageFormData({ ...damageFormData, damageCertificateDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Loaded Weight (Kg)</label>
+                    <input type="number" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.loadedWeightKg}
+                      onChange={e => setDamageFormData({ ...damageFormData, loadedWeightKg: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Transport Info (Required by Backend) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Receipt/Memo No</label>
+                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.transportReceiptMemoNo}
+                      onChange={e => setDamageFormData({ ...damageFormData, transportReceiptMemoNo: e.target.value })}
+                      placeholder="Enter Receipt No"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Receipt Date</label>
+                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.transportReceiptDate}
+                      onChange={e => setDamageFormData({ ...damageFormData, transportReceiptDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Parties Info (Required by Backend) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">From Party</label>
+                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.fromParty}
+                      onChange={e => setDamageFormData({ ...damageFormData, fromParty: e.target.value })}
+                      placeholder="Sender Name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">For Party</label>
+                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.forParty}
+                      onChange={e => setDamageFormData({ ...damageFormData, forParty: e.target.value })}
+                      placeholder="Receiver Name"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Product Info */}
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">Product Name</label>
+                  <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                    value={damageFormData.productName}
+                    onChange={e => setDamageFormData({ ...damageFormData, productName: e.target.value })}
+                  />
+                </div>
+
+                {/* 5. Accident Details (Required by Backend) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Accident Date</label>
+                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.accidentDate}
+                      onChange={e => setDamageFormData({ ...damageFormData, accidentDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Accident Location</label>
+                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.accidentLocation}
+                      onChange={e => setDamageFormData({ ...damageFormData, accidentLocation: e.target.value })}
+                      placeholder="Place of accident"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">Accident Description</label>
+                  <textarea required className="w-full border p-2 rounded-xl text-black" rows={3}
+                    value={damageFormData.accidentDescription}
+                    onChange={e => setDamageFormData({ ...damageFormData, accidentDescription: e.target.value })}
+                    placeholder="Describe how the damage occurred..."
+                  />
+                </div>
+
+                {/* 6. Settlement */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Agreed Amount (₹)</label>
+                    <input type="number" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.agreedDamageAmountNumber}
+                      onChange={e => setDamageFormData({ ...damageFormData, agreedDamageAmountNumber: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 block mb-1">Amount in Words</label>
+                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                      value={damageFormData.agreedDamageAmountWords}
+                      onChange={e => setDamageFormData({ ...damageFormData, agreedDamageAmountWords: e.target.value })}
+                      placeholder="e.g. Ten Thousand Only"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">Authorized Signatory Name</label>
+                  <input type="text" required className="w-full border p-2 rounded-xl text-black"
+                    value={damageFormData.authorizedSignatoryName}
+                    onChange={e => setDamageFormData({ ...damageFormData, authorizedSignatoryName: e.target.value })}
+                  />
+                </div>
+
+                <button type="submit" className="w-full bg-[#4309ac] text-white py-3 rounded-xl font-bold mt-4 hover:bg-[#350889]">
+                  Submit Certificate Request
+                </button>
+              </form>
             </div>
           </div>
         )}

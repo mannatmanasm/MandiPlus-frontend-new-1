@@ -64,6 +64,34 @@ export interface RegenerateInvoicePayload {
   isClaim?: boolean;
   claimDetails?: string;
 }
+export interface ClaimRequest {
+  id: string;
+  status: string; // 'PENDING', 'SURVEYOR_ASSIGNED', 'APPROVED', 'REJECTED'
+  createdAt: string;
+  invoice: InsuranceForm; // Linked invoice
+  surveyorName?: string;
+  surveyorContact?: string;
+  claimFormUrl?: string; // URL for the generated PDF
+  supportedMedia?: string[];
+  notes?: string;
+}
+
+// Added this DTO for the damage form
+export interface CreateDamageFormDto {
+  damageCertificateDate: string;
+  transportReceiptMemoNo: string;
+  transportReceiptDate: string;
+  loadedWeightKg: number;
+  productName: string;
+  fromParty: string;
+  forParty: string;
+  accidentDate: string;
+  accidentLocation: string;
+  accidentDescription: string;
+  agreedDamageAmountNumber: number;
+  agreedDamageAmountWords: string;
+  authorizedSignatoryName: string;
+}
 
 export type CreateInsuranceResponse = InsuranceForm;
 
@@ -132,7 +160,103 @@ export const getMyInsuranceForms = async (): Promise<InsuranceForm[]> => {
     throw err.response?.data || { message: "Failed to fetch invoices" };
   }
 };
+/**
+ * Get all claim requests for the logged-in user
+ * GET /claim-requests/user/:userId
+ */
+export const getMyClaimsForms = async (): Promise<ClaimRequest[]> => {
+  try {
+    const token = localStorage.getItem("accessToken");
+    const userData = localStorage.getItem("user");
 
+    if (!userData) throw new Error("User not found");
+    const user = JSON.parse(userData);
+
+    const response = await axios.get(
+      `${API_BASE_URL}/claim-requests/user/${user.id}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const err = error as AxiosError<any>;
+    throw err.response?.data || { message: "Failed to fetch claims" };
+  }
+};
+
+/**
+ * NEW: Create a new Claim by Truck Number
+ * POST /claim-requests/by-truck
+ */
+export const createClaimByTruck = async (
+  truckNumber: string
+): Promise<ClaimRequest> => {
+  try {
+    const token = localStorage.getItem("accessToken");
+    const response = await axios.post(
+      `${API_BASE_URL}/claim-requests/by-truck`,
+      { truckNumber },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    const err = error as AxiosError<any>;
+    throw err.response?.data || { message: "Failed to create claim" };
+  }
+};
+
+/**
+ * NEW: Upload Supporting Media for Claim
+ * POST /claim-requests/:id/supporting-media
+ */
+export const uploadClaimMedia = async (
+  claimId: string,
+  files: File[]
+): Promise<ClaimRequest> => {
+  try {
+    const token = localStorage.getItem("accessToken");
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    const response = await axios.post(
+      `${API_BASE_URL}/claim-requests/${claimId}/supporting-media`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const err = error as AxiosError<any>;
+    throw err.response?.data || { message: "Failed to upload media" };
+  }
+};
+
+/**
+ * NEW: Submit Damage Certificate Form
+ * POST /claim-requests/:id/damage-form
+ */
+export const submitDamageForm = async (
+  claimId: string,
+  data: CreateDamageFormDto
+): Promise<any> => {
+  try {
+    const token = localStorage.getItem("accessToken");
+    const response = await axios.post(
+      `${API_BASE_URL}/claim-requests/${claimId}/damage-form`,
+      data,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    const err = error as AxiosError<any>;
+    throw err.response?.data || { message: "Failed to submit damage form" };
+  }
+};
 /**
  * ✅ NEW: Regenerate Invoice PDF
  * POST /invoices/regenerate
