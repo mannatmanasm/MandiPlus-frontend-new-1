@@ -116,9 +116,6 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 class AdminApi {
-  getClaims(): any {
-    throw new Error("Method not implemented.");
-  }
   private client: AxiosInstance;
   private authToken: string | null = null;
 
@@ -316,6 +313,125 @@ class AdminApi {
       };
     }
   };
+
+
+  // ============================================================
+  // ✅ CLAIM REQUESTS MANAGEMENT (ADMIN)
+  // ============================================================
+
+  /**
+   * Get all claims with optional filters
+   * Filters: status, truckNumber, invoiceId
+   */
+  public getClaims = async (
+    filters?: FilterClaimRequestsDto
+  ): Promise<ApiResponse<ClaimRequest[]>> => {
+    try {
+      const response = await this.client.get<ApiResponse<ClaimRequest[]>>(
+        "/claim-requests/admin",
+        { params: filters }
+      );
+
+      return {
+        success: true,
+        data: response.data.data ?? [],
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to fetch claims",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Get a single claim by ID
+   */
+  public getClaimById = async (
+    id: string
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.get<ApiResponse<ClaimRequest>>(
+        `/claim-requests/${id}`
+      );
+
+      return {
+        success: true,
+        data: response.data.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to fetch claim details",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Create a claim on behalf of a user using Truck Number
+   * Attaches claim to user's latest invoice for that truck
+   */
+  public createClaimForUser = async (
+    truckNumber: string
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.post<ApiResponse<ClaimRequest>>(
+        "/claim-requests/by-truck",
+        { truckNumber }
+      );
+
+      return {
+        success: true,
+        data: response.data.data,
+        message: "Claim created successfully",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to create claim",
+        error: error.message,
+      };
+    }
+  };
+
+  /**
+   * Update claim status
+   * Actions: Assign Surveyor | Approve | Reject | Settle
+   */
+  public updateClaimStatus = async (
+    id: string,
+    updateData: UpdateClaimStatusDto
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.patch<ApiResponse<ClaimRequest>>(
+        `/claim-requests/${id}/status`,
+        updateData
+      );
+
+      return {
+        success: true,
+        data: response.data.data,
+        message: "Claim status updated successfully",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to update claim status",
+        error: error.message,
+      };
+    }
+  };
+
+  // ============================================================
+  // END CLAIM REQUESTS
+  // ============================================================
+
 
   public getDashboardStats = async (): Promise<
     ApiResponse<{
