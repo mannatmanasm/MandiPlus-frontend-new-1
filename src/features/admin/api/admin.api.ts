@@ -116,6 +116,9 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 class AdminApi {
+  getClaims(): any {
+    throw new Error("Method not implemented.");
+  }
   private client: AxiosInstance;
   private authToken: string | null = null;
 
