@@ -36,6 +36,7 @@ interface Invoice {
     quantity: number;
     rate?: number;
     amount: number;
+    vehicleNumber?: string;
     pdfUrl?: string;
     pdfURL?: string;
     createdAt: string;
@@ -158,47 +159,47 @@ export default function InsuranceFormsPage() {
         }
     };
 
-const handleVerifyInvoice = async (invoiceId: string) => {
-  // Safety: agar already verifying chal raha ho
-  if (verifyingInvoiceId) return;
+    const handleVerifyInvoice = async (invoiceId: string) => {
+        // Safety: agar already verifying chal raha ho
+        if (verifyingInvoiceId) return;
 
-  const confirmed = window.confirm(
-    "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
-  );
+        const confirmed = window.confirm(
+            "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
+        );
 
-  if (!confirmed) return; // ❌ user cancelled
+        if (!confirmed) return; // ❌ user cancelled
 
-  try {
-    setVerifyingInvoiceId(invoiceId);
+        try {
+            setVerifyingInvoiceId(invoiceId);
 
-    toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
+            toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
 
-    const res = await adminApi.verifyInvoice(invoiceId);
+            const res = await adminApi.verifyInvoice(invoiceId);
 
-    if (!res.success) {
-      throw new Error(res.message || "Verification failed");
-    }
+            if (!res.success) {
+                throw new Error(res.message || "Verification failed");
+            }
 
-    toast.update("verify-invoice", {
-      render: "Invoice verified successfully",
-      type: "success",
-      isLoading: false,
-      autoClose: 2000,
-    });
+            toast.update("verify-invoice", {
+                render: "Invoice verified successfully",
+                type: "success",
+                isLoading: false,
+                autoClose: 2000,
+            });
 
-    // Refresh list to get isVerified=true
-    await fetchInvoices();
-  } catch (error: any) {
-    toast.update("verify-invoice", {
-      render: error.message || "Failed to verify invoice",
-      type: "error",
-      isLoading: false,
-      autoClose: 3000,
-    });
-  } finally {
-    setVerifyingInvoiceId(null);
-  }
-};
+            // Refresh list to get isVerified=true
+            await fetchInvoices();
+        } catch (error: any) {
+            toast.update("verify-invoice", {
+                render: error.message || "Failed to verify invoice",
+                type: "error",
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setVerifyingInvoiceId(null);
+        }
+    };
 
 
 
@@ -226,9 +227,8 @@ const handleVerifyInvoice = async (invoiceId: string) => {
             productName: Array.isArray(invoice.productName)
                 ? invoice.productName[0]
                 : invoice.productName || '',
-            quantity: invoice.quantity,
+            vehicleNumber: invoice.vehicleNumber || '',
             rate: invoice.rate || 0,
-            amount: invoice.amount,
             invoiceDate: invoice.invoiceDate.split('T')[0],
             terms: invoice.terms || ''
         });
@@ -239,76 +239,75 @@ const handleVerifyInvoice = async (invoiceId: string) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: name === 'quantity' || name === 'rate' || name === 'amount'
+            [name]: name === 'rate'
                 ? parseFloat(value) || 0
                 : value
         }));
     };
 
-const handleRegenerate = async () => {
-    if (!editingInvoice) return;
+    const handleRegenerate = async () => {
+        if (!editingInvoice) return;
 
-    setIsRegenerating(true);
+        setIsRegenerating(true);
 
-    try {
-        const payload: RegenerateInvoicePayload = {
-            ...formData,
-            invoiceId: editingInvoice.id,
+        try {
+            const payload: RegenerateInvoicePayload = {
+                ...formData,
+                invoiceId: editingInvoice.id,
 
-            supplierAddress: formData.supplierAddress
-                ? typeof formData.supplierAddress === 'string'
-                    ? formData.supplierAddress.split('\n').filter(Boolean)
-                    : formData.supplierAddress
-                : [],
+                supplierAddress: formData.supplierAddress
+                    ? typeof formData.supplierAddress === 'string'
+                        ? formData.supplierAddress.split('\n').filter(Boolean)
+                        : formData.supplierAddress
+                    : [],
 
-            billToAddress: formData.billToAddress
-                ? typeof formData.billToAddress === 'string'
-                    ? formData.billToAddress.split('\n').filter(Boolean)
-                    : formData.billToAddress
-                : [],
+                billToAddress: formData.billToAddress
+                    ? typeof formData.billToAddress === 'string'
+                        ? formData.billToAddress.split('\n').filter(Boolean)
+                        : formData.billToAddress
+                    : [],
 
-            productName: formData.productName || '',
-            quantity: Number(formData.quantity) || 0,
-            rate: Number(formData.rate) || 0,
-            amount: Number(formData.amount) || 0,
-        };
+                productName: formData.productName || '',
+                vehicleNumber: formData.vehicleNumber || '',
+                rate: Number(formData.rate) || 0,
+            };
 
-        const response = await adminApi.regenerateInvoice(payload);
+            const response = await adminApi.regenerateInvoice(payload);
 
-        // 👇 If we reached here, API succeeded (status 200)
-        const responseData = response?.data;
+            // 👇 If we reached here, API succeeded (status 200)
+            const responseData = response?.data;
 
-        toast.success('Invoice updated and PDF regeneration queued successfully');
+            toast.success('Invoice updated and PDF regeneration queued successfully');
 
-        await fetchInvoices();
+            await fetchInvoices();
 
-        setIsEditing(false);
-        setEditingInvoice(null);
+            setIsEditing(false);
+            setEditingInvoice(null);
 
-        const updatedInvoices = invoices.map(invoice =>
-            invoice.id === payload.invoiceId
-                ? {
-                      ...invoice,
-                      pdfUrl:
-                          responseData?.data?.pdfUrl ??
-                          responseData?.pdfUrl ??
-                          invoice.pdfUrl,
-                      pdfURL:
-                          responseData?.data?.pdfURL ??
-                          responseData?.pdfURL ??
-                          invoice.pdfURL,
-                  }
-                : invoice
-        );
+            const updatedInvoices = invoices.map(invoice =>
+                invoice.id === payload.invoiceId
+                    ? {
+                        ...invoice,
+                        pdfUrl:
+                            responseData?.data?.pdfUrl ??
+                            responseData?.pdfUrl ??
+                            invoice.pdfUrl,
+                        pdfURL:
+                            responseData?.data?.pdfURL ??
+                            responseData?.pdfURL ??
+                            invoice.pdfURL,
+                    }
+                    : invoice
+            );
 
-        setInvoices(updatedInvoices);
-    } catch (error: any) {
-        console.error('Error regenerating invoice:', error);
-        toast.error(error?.message || 'Failed to update invoice');
-    } finally {
-        setIsRegenerating(false);
-    }
-};
+            setInvoices(updatedInvoices);
+        } catch (error: any) {
+            console.error('Error regenerating invoice:', error);
+            toast.error(error?.message || 'Failed to update invoice');
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
 
 
     const closeModal = () => {
@@ -459,10 +458,10 @@ const handleRegenerate = async () => {
                                                     <span className="text-gray-300 text-xs uppercase font-medium">Pending</span>
                                                 )}
                                             </td>
-<td className="px-3 py-4 text-center">
-  {inv.isVerified ? (
-    <span
-      className="
+                                            <td className="px-3 py-4 text-center">
+                                                {inv.isVerified ? (
+                                                    <span
+                                                        className="
         inline-flex items-center gap-1
         text-xs font-semibold
         text-green-700
@@ -472,14 +471,14 @@ const handleRegenerate = async () => {
         rounded
         whitespace-nowrap
       "
-    >
-      <span className="text-green-600 text-sm leading-none">✓</span>
-      Verified
-    </span>
-  ) : (
-    <button
-      onClick={() => handleVerifyInvoice(inv.id)}
-      className="
+                                                    >
+                                                        <span className="text-green-600 text-sm leading-none">✓</span>
+                                                        Verified
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleVerifyInvoice(inv.id)}
+                                                        className="
         inline-flex items-center justify-center
         w-8 h-8
         text-green-600
@@ -488,18 +487,18 @@ const handleRegenerate = async () => {
         rounded
         transition-colors
       "
-      title="Verify Invoice"
-    >
-      <span className="text-lg leading-none">✓</span>
-    </button>
-  )}
-</td>
+                                                        title="Verify Invoice"
+                                                    >
+                                                        <span className="text-lg leading-none">✓</span>
+                                                    </button>
+                                                )}
+                                            </td>
 
 
-<td className="px-3 py-4 text-center">
-  <button
-    onClick={() => handleEditClick(inv)}
-    className="
+                                            <td className="px-3 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleEditClick(inv)}
+                                                    className="
       inline-flex items-center justify-center
       w-8 h-8
       text-blue-600
@@ -508,11 +507,11 @@ const handleRegenerate = async () => {
       rounded
       transition-colors
     "
-    title="Edit Invoice"
-  >
-    ✏️
-  </button>
-</td>
+                                                    title="Edit Invoice"
+                                                >
+                                                    ✏️
+                                                </button>
+                                            </td>
 
 
 
@@ -602,39 +601,14 @@ const handleRegenerate = async () => {
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                                        <label className="block text-sm font-medium text-gray-700">Vehicle Number</label>
                                         <input
-                                            type="number"
-                                            name="quantity"
-                                            value={formData.quantity || ''}
+                                            type="text"
+                                            name="vehicleNumber"
+                                            value={formData.vehicleNumber || ''}
                                             onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
                                             className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Rate</label>
-                                        <input
-                                            type="number"
-                                            name="rate"
-                                            value={formData.rate || ''}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Amount</label>
-                                        <input
-                                            type="number"
-                                            name="amount"
-                                            value={formData.amount || ''}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                            placeholder="e.g., MH12AB1234"
                                         />
                                     </div>
                                     <div className="space-y-1">

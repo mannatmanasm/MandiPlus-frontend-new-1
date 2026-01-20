@@ -58,9 +58,8 @@ export interface RegenerateInvoicePayload {
   billToName?: string;
   billToAddress?: string | string[];
   productName?: string;
-  quantity?: number;
+  vehicleNumber?: string;
   rate?: number;
-  amount?: number;
   // Add other invoice fields as needed
 }
 
@@ -592,13 +591,13 @@ class AdminApi {
         data: {
           totalUsers: usersResponse.success
             ? (usersResponse.data as any)?.count ||
-              (usersResponse.data as any)?.users?.length ||
-              0
+            (usersResponse.data as any)?.users?.length ||
+            0
             : 0,
           totalForms: formsResponse.success
             ? (formsResponse.data as any)?.count ||
-              (formsResponse.data as any)?.forms?.length ||
-              0
+            (formsResponse.data as any)?.forms?.length ||
+            0
             : 0,
           totalClaims:
             claimsResponse.success && Array.isArray(claimsResponse.data)
