@@ -74,10 +74,10 @@ export interface ClaimRequest {
   claimFormUrl?: string; // URL for the generated PDF
   // New individual media fields
   fir?: string | null; // FIR document URL
-  gpsPictures?: string | null; // GPS pictures URL
   accidentPic?: string | null; // Accident picture URL
-  inspectionReport?: string | null; // Inspection report URL
-  weighmentSlip?: string | null; // Weighment slip URL
+  inspectionReport?: string | null; // Inspection report URL (PDF only, Admin only)
+  lorryReceipt?: string | null; // Lorry receipt URL
+  insurancePolicy?: string | null; // Insurance policy URL
   damageFormUrl?: string | null; // Damage form PDF URL
   // Legacy field (deprecated)
   supportedMedia?: string[];
@@ -218,12 +218,12 @@ export const createClaimByTruck = async (
  * NEW: Upload Individual Media File for Claim
  * POST /claim-requests/:id/media/:mediaType
  * @param claimId - Claim request ID
- * @param mediaType - One of: 'fir', 'gpsPictures', 'accidentPic', 'inspectionReport', 'weighmentSlip'
+ * @param mediaType - One of: 'fir', 'accidentPic', 'inspectionReport', 'lorryReceipt', 'insurancePolicy'
  * @param file - Single file to upload
  */
 export const uploadClaimMedia = async (
   claimId: string,
-  mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip',
+  mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy',
   file: File
 ): Promise<ClaimRequest> => {
   try {

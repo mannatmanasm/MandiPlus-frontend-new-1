@@ -45,6 +45,10 @@ const HomePage = () => {
   const [showClaimsModal, setShowClaimsModal] = useState(false);
   const [newClaimTruckNo, setNewClaimTruckNo] = useState('');
   const [creatingClaim, setCreatingClaim] = useState(false);
+  const [showClaimInvoiceModal, setShowClaimInvoiceModal] = useState(false);
+  const [selectedClaimForInvoice, setSelectedClaimForInvoice] = useState<ClaimRequest | null>(null);
+  const [showClaimSuccessModal, setShowClaimSuccessModal] = useState(false);
+  const [createdClaim, setCreatedClaim] = useState<ClaimRequest | null>(null);
 
   // --- ✅ NEW: Damage Form States ---
   const [showDamageModal, setShowDamageModal] = useState(false);
@@ -68,7 +72,7 @@ const HomePage = () => {
   // --- Cropper & File State ---
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeClaimIdForUpload, setActiveClaimIdForUpload] = useState<string | null>(null); // ✅ NEW
-  const [activeMediaType, setActiveMediaType] = useState<'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip' | null>(null); // ✅ NEW
+  const [activeMediaType, setActiveMediaType] = useState<'fir' | 'accidentPic' | 'lorryReceipt' | 'insurancePolicy' | null>(null); // ✅ NEW
   const [showClaimDetailModal, setShowClaimDetailModal] = useState(false); // ✅ NEW
   const [selectedClaimForDetail, setSelectedClaimForDetail] = useState<ClaimRequest | null>(null); // ✅ NEW
 
@@ -166,10 +170,11 @@ const HomePage = () => {
     if (!newClaimTruckNo) return;
     setCreatingClaim(true);
     try {
-      await createClaimByTruck(newClaimTruckNo);
+      const newClaim = await createClaimByTruck(newClaimTruckNo);
       setNewClaimTruckNo('');
+      setCreatedClaim(newClaim);
+      setShowClaimSuccessModal(true);
       await fetchClaims();
-      alert("Claim created successfully!");
     } catch (err: any) {
       alert(err.message || "Failed to create claim. Ensure invoice exists.");
     } finally {
@@ -203,6 +208,11 @@ const HomePage = () => {
         e.target.value = '';
       }
     }
+  };
+
+  const openClaimInvoiceModal = (claim: ClaimRequest) => {
+    setSelectedClaimForInvoice(claim);
+    setShowClaimInvoiceModal(true);
   };
 
   const openClaimDetailModal = (claim: ClaimRequest) => {
@@ -635,9 +645,14 @@ const HomePage = () => {
                       <div key={claim.id} className="border rounded-2xl p-4 hover:shadow-md transition-shadow relative">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold mb-1 ${claim.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                              claim.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'
+                            <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold mb-1 ${
+                              claim.status === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : claim.status === 'inprogress' || claim.status === 'surveyor_assigned'
+                                ? 'bg-blue-100 text-blue-800'
+                                : claim.status === 'completed'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
                               }`}>
                               {claim.status.replace('_', ' ')}
                             </span>
@@ -656,18 +671,14 @@ const HomePage = () => {
                             onClick={() => openClaimDetailModal(claim)}
                             className="bg-blue-50 text-blue-700 px-3 py-2 rounded-xl text-xs font-medium hover:bg-blue-100 border border-blue-100 flex items-center gap-1"
                           >
-                            📋 Manage Documents
+                            📤 Submit Documents
                           </button>
 
                           <button
-                            onClick={() => openDamageForm(claim)}
-                            className={`px-3 py-2 rounded-xl text-xs font-medium border flex items-center gap-1 ${
-                              claim.damageFormUrl
-                                ? 'bg-green-50 text-green-700 hover:bg-green-100 border-green-100'
-                                : 'bg-red-50 text-red-700 hover:bg-red-100 border-red-100'
-                            }`}
+                            onClick={() => openClaimInvoiceModal(claim)}
+                            className="bg-gray-50 text-gray-700 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 border border-gray-200 flex items-center gap-1"
                           >
-                            {claim.damageFormUrl ? '✅ Damage Form' : '📝 Damage Form'}
+                            📄 Invoice
                           </button>
 
                           {claim.claimFormUrl && (
@@ -693,6 +704,156 @@ const HomePage = () => {
           </div>
         )}
 
+        {/* ✅ NEW: CLAIM SUCCESS MODAL */}
+        {showClaimSuccessModal && createdClaim && (
+          <div className="fixed inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md p-8 text-center shadow-2xl">
+              {/* Success Icon with overlapping documents */}
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  {/* Back document */}
+                  <div className="absolute top-2 left-2 w-20 h-20 bg-gray-300 rounded-lg transform rotate-6"></div>
+                  {/* Front document with checkmark */}
+                  <div className="relative w-20 h-20 bg-blue-50 rounded-lg flex items-center justify-center shadow-md">
+                    <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                      <CheckIcon className="w-7 h-7 text-white" />
+                    </div>
+                  </div>
+                  {/* Gradient line below */}
+                  <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-24 h-1.5 bg-gradient-to-r from-blue-400 via-blue-500 to-green-500 rounded-full"></div>
+                </div>
+              </div>
+
+              {/* Success Message */}
+              <h2 className="text-xl font-bold text-slate-800 mb-3 leading-tight">
+                Your claim has successfully registered.
+              </h2>
+              <p className="text-base text-slate-700 mb-2">
+                Your claim number is <span className="font-bold text-blue-600">{createdClaim.invoice?.invoiceNumber || createdClaim.id.replace(/-/g, '').slice(0, 10)}</span>.
+              </p>
+              <p className="text-sm text-gray-600 mb-1">
+                Please note this claim number for future reference.
+              </p>
+              <p className="text-sm text-gray-600 mb-6">
+                Kindly upload the required documents to speed up your claim process.
+              </p>
+
+              {/* Upload Documents Button */}
+              <button
+                onClick={() => {
+                  setShowClaimSuccessModal(false);
+                  setSelectedClaimForDetail(createdClaim);
+                  setShowClaimDetailModal(true);
+                }}
+                className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-green-500 text-white py-3.5 px-6 rounded-xl font-semibold text-base mb-4 hover:from-blue-600 hover:via-blue-700 hover:to-green-600 transition-all shadow-lg transform hover:scale-[1.02]"
+              >
+                Upload Documents
+              </button>
+
+              {/* Go Back Link */}
+              <button
+                onClick={() => {
+                  setShowClaimSuccessModal(false);
+                  setCreatedClaim(null);
+                }}
+                className="text-gray-500 text-sm hover:text-gray-700 underline"
+              >
+                Go back to home
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ NEW: CLAIM INVOICE MODAL (for My Claims list) */}
+        {showClaimInvoiceModal && selectedClaimForInvoice && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl">
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
+                <h3 className="text-xl font-bold text-slate-800">Invoice Details</h3>
+                <button
+                  onClick={() => {
+                    setShowClaimInvoiceModal(false);
+                    setSelectedClaimForInvoice(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 space-y-3 text-sm text-slate-800">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500">Invoice Number</div>
+                    <div className="font-semibold">
+                      {selectedClaimForInvoice.invoice?.invoiceNumber || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Invoice Date</div>
+                    <div>
+                      {selectedClaimForInvoice.invoice?.invoiceDate
+                        ? new Date(selectedClaimForInvoice.invoice.invoiceDate).toLocaleDateString()
+                        : 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500">Supplier</div>
+                    <div className="font-medium">
+                      {selectedClaimForInvoice.invoice?.supplierName || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Buyer</div>
+                    <div className="font-medium">
+                      {selectedClaimForInvoice.invoice?.billToName || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500">Truck Number</div>
+                    <div>{selectedClaimForInvoice.invoice?.vehicleNumber || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Quantity</div>
+                    <div>{selectedClaimForInvoice.invoice?.quantity ?? 'N/A'}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500">Amount</div>
+                    <div>₹ {selectedClaimForInvoice.invoice?.amount ?? 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Status</div>
+                    <div className="font-medium">
+                      {selectedClaimForInvoice.status.replace('_', ' ')}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedClaimForInvoice.invoice?.pdfUrl && (
+                  <div className="pt-3">
+                    <a
+                      href={selectedClaimForInvoice.invoice.pdfUrl}
+                      target="_blank"
+                      className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      📄 Open Invoice PDF
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ✅ NEW: CLAIM DETAIL MODAL (Media Management) */}
         {showClaimDetailModal && selectedClaimForDetail && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -710,9 +871,13 @@ const HomePage = () => {
                     <div><span className="font-semibold">Truck:</span> {selectedClaimForDetail.invoice?.vehicleNumber || 'N/A'}</div>
                     <div><span className="font-semibold">Status:</span> 
                       <span className={`ml-2 inline-block px-2 py-1 rounded-lg text-xs font-bold ${
-                        selectedClaimForDetail.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        selectedClaimForDetail.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-800'
+                        selectedClaimForDetail.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : selectedClaimForDetail.status === 'inprogress' || selectedClaimForDetail.status === 'surveyor_assigned'
+                          ? 'bg-blue-100 text-blue-800'
+                          : selectedClaimForDetail.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
                       }`}>
                         {selectedClaimForDetail.status.replace('_', ' ')}
                       </span>
@@ -724,30 +889,7 @@ const HomePage = () => {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-800 mb-3">Documents & Media</h4>
                   
-                  <UserMediaUploadSection
-                    label="FIR Document"
-                    mediaType="fir"
-                    existingUrl={selectedClaimForDetail.fir}
-                    claimId={selectedClaimForDetail.id}
-                    onUploadClick={(mediaType) => {
-                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
-                      setActiveMediaType(mediaType);
-                      document.getElementById('claim-media-upload')?.click();
-                    }}
-                  />
-
-                  <UserMediaUploadSection
-                    label="GPS Pictures"
-                    mediaType="gpsPictures"
-                    existingUrl={selectedClaimForDetail.gpsPictures}
-                    claimId={selectedClaimForDetail.id}
-                    onUploadClick={(mediaType) => {
-                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
-                      setActiveMediaType(mediaType);
-                      document.getElementById('claim-media-upload')?.click();
-                    }}
-                  />
-
+                  {/* 1. Accident Picture */}
                   <UserMediaUploadSection
                     label="Accident Picture"
                     mediaType="accidentPic"
@@ -760,201 +902,68 @@ const HomePage = () => {
                     }}
                   />
 
-                  <UserMediaUploadSection
-                    label="Inspection Report"
-                    mediaType="inspectionReport"
-                    existingUrl={selectedClaimForDetail.inspectionReport}
-                    claimId={selectedClaimForDetail.id}
-                    onUploadClick={(mediaType) => {
-                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
-                      setActiveMediaType(mediaType);
-                      document.getElementById('claim-media-upload')?.click();
-                    }}
-                  />
-
-                  <UserMediaUploadSection
-                    label="Weighment Slip"
-                    mediaType="weighmentSlip"
-                    existingUrl={selectedClaimForDetail.weighmentSlip}
-                    claimId={selectedClaimForDetail.id}
-                    onUploadClick={(mediaType) => {
-                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
-                      setActiveMediaType(mediaType);
-                      document.getElementById('claim-media-upload')?.click();
-                    }}
-                  />
-
-                  {/* Damage Form Status */}
+                  {/* 2. Damage Certificate (Billed by transporter) */}
                   <div className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-700">Damage Form</span>
-                      {selectedClaimForDetail.damageFormUrl && <CheckIcon className="w-5 h-5 text-green-600" />}
+                      <span className="font-medium text-slate-700">Damage Certificate</span>
+                      <span className="text-xs text-gray-500">(Billed by transporter)</span>
                     </div>
-                    {selectedClaimForDetail.damageFormUrl ? (
+                    <div className="flex items-center gap-2">
                       <a
-                        href={selectedClaimForDetail.damageFormUrl}
-                        target="_blank"
-                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        href="/pdf/example-damage-pdf/example-damage-cert.pdf"
+                        download
+                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
                       >
-                        View PDF
+                        📥 Download
                       </a>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setShowClaimDetailModal(false);
-                          openDamageForm(selectedClaimForDetail);
-                        }}
-                        className="text-green-600 hover:text-green-800 text-sm"
-                      >
-                        Create
-                      </button>
-                    )}
+                    </div>
                   </div>
+
+                  {/* 3. FIR Document */}
+                  <UserMediaUploadSection
+                    label="FIR Document"
+                    mediaType="fir"
+                    existingUrl={selectedClaimForDetail.fir}
+                    claimId={selectedClaimForDetail.id}
+                    onUploadClick={(mediaType) => {
+                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
+                      setActiveMediaType(mediaType);
+                      document.getElementById('claim-media-upload')?.click();
+                    }}
+                  />
+
+                  {/* 4. Insurance Policy */}
+                  <UserMediaUploadSection
+                    label="Insurance Policy"
+                    mediaType="insurancePolicy"
+                    existingUrl={selectedClaimForDetail.insurancePolicy}
+                    claimId={selectedClaimForDetail.id}
+                    onUploadClick={(mediaType) => {
+                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
+                      setActiveMediaType(mediaType);
+                      document.getElementById('claim-media-upload')?.click();
+                    }}
+                  />
+
+                  {/* 5. Lorry Receipt */}
+                  <UserMediaUploadSection
+                    label="Lorry Receipt"
+                    mediaType="lorryReceipt"
+                    existingUrl={selectedClaimForDetail.lorryReceipt}
+                    claimId={selectedClaimForDetail.id}
+                    onUploadClick={(mediaType) => {
+                      setActiveClaimIdForUpload(selectedClaimForDetail.id);
+                      setActiveMediaType(mediaType);
+                      document.getElementById('claim-media-upload')?.click();
+                    }}
+                  />
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ✅ NEW: DAMAGE FORM MODAL */}
-        {showDamageModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
-                <h3 className="text-xl font-bold text-slate-800">Damage Certificate</h3>
-                <button onClick={() => setShowDamageModal(false)} className="text-gray-500">✕</button>
-              </div>
-
-              <form onSubmit={submitDamageFormHandler} className="p-6 space-y-4">
-
-                {/* 1. Basic Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Date</label>
-                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.damageCertificateDate}
-                      onChange={e => setDamageFormData({ ...damageFormData, damageCertificateDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Loaded Weight (Kg)</label>
-                    <input type="number" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.loadedWeightKg}
-                      onChange={e => setDamageFormData({ ...damageFormData, loadedWeightKg: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Transport Info (Required by Backend) */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Receipt/Memo No</label>
-                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.transportReceiptMemoNo}
-                      onChange={e => setDamageFormData({ ...damageFormData, transportReceiptMemoNo: e.target.value })}
-                      placeholder="Enter Receipt No"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Receipt Date</label>
-                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.transportReceiptDate}
-                      onChange={e => setDamageFormData({ ...damageFormData, transportReceiptDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* 3. Parties Info (Required by Backend) */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">From Party</label>
-                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.fromParty}
-                      onChange={e => setDamageFormData({ ...damageFormData, fromParty: e.target.value })}
-                      placeholder="Sender Name"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">For Party</label>
-                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.forParty}
-                      onChange={e => setDamageFormData({ ...damageFormData, forParty: e.target.value })}
-                      placeholder="Receiver Name"
-                    />
-                  </div>
-                </div>
-
-                {/* 4. Product Info */}
-                <div>
-                  <label className="text-xs text-gray-600 block mb-1">Product Name</label>
-                  <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                    value={damageFormData.productName}
-                    onChange={e => setDamageFormData({ ...damageFormData, productName: e.target.value })}
-                  />
-                </div>
-
-                {/* 5. Accident Details (Required by Backend) */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Accident Date</label>
-                    <input type="date" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.accidentDate}
-                      onChange={e => setDamageFormData({ ...damageFormData, accidentDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Accident Location</label>
-                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.accidentLocation}
-                      onChange={e => setDamageFormData({ ...damageFormData, accidentLocation: e.target.value })}
-                      placeholder="Place of accident"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-600 block mb-1">Accident Description</label>
-                  <textarea required className="w-full border p-2 rounded-xl text-black" rows={3}
-                    value={damageFormData.accidentDescription}
-                    onChange={e => setDamageFormData({ ...damageFormData, accidentDescription: e.target.value })}
-                    placeholder="Describe how the damage occurred..."
-                  />
-                </div>
-
-                {/* 6. Settlement */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Agreed Amount (₹)</label>
-                    <input type="number" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.agreedDamageAmountNumber}
-                      onChange={e => setDamageFormData({ ...damageFormData, agreedDamageAmountNumber: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 block mb-1">Amount in Words</label>
-                    <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                      value={damageFormData.agreedDamageAmountWords}
-                      onChange={e => setDamageFormData({ ...damageFormData, agreedDamageAmountWords: e.target.value })}
-                      placeholder="e.g. Ten Thousand Only"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-600 block mb-1">Authorized Signatory Name</label>
-                  <input type="text" required className="w-full border p-2 rounded-xl text-black"
-                    value={damageFormData.authorizedSignatoryName}
-                    onChange={e => setDamageFormData({ ...damageFormData, authorizedSignatoryName: e.target.value })}
-                  />
-                </div>
-
-                <button type="submit" className="w-full bg-[#4309ac] text-white py-3 rounded-xl font-bold mt-4 hover:bg-[#350889]">
-                  Submit Certificate Request
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* (Damage form modal removed for users; sample download provided in Claim Documents modal) */}
 
         {/* REGENERATE FORM MODAL */}
         {showRegenerateForm && selectedInvoice && (
@@ -1258,10 +1267,10 @@ function UserMediaUploadSection({
     onUploadClick
 }: {
     label: string;
-    mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip';
+    mediaType: 'fir' | 'accidentPic' | 'lorryReceipt' | 'insurancePolicy';
     existingUrl?: string | null;
     claimId: string;
-    onUploadClick: (mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip') => void;
+    onUploadClick: (mediaType: 'fir' | 'accidentPic' | 'lorryReceipt' | 'insurancePolicy') => void;
 }) {
     return (
         <div className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">

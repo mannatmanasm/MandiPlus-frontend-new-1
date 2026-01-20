@@ -76,11 +76,10 @@ export interface InvoiceFilterParams {
 // --- ✅ NEW: Claim Request Interfaces ---
 
 export enum ClaimStatus {
-  PENDING = 'PENDING',
-  SURVEYOR_ASSIGNED = 'SURVEYOR_ASSIGNED',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  SETTLED = 'SETTLED',
+  PENDING = 'pending',
+  INPROGRESS = 'inprogress',
+  SURVEYOR_ASSIGNED = 'surveyor_assigned',
+  COMPLETED = 'completed',
 }
 
 export interface ClaimRequest {
@@ -94,10 +93,10 @@ export interface ClaimRequest {
   claimFormUrl?: string;
   // New individual media fields
   fir?: string | null; // FIR document URL
-  gpsPictures?: string | null; // GPS pictures URL
   accidentPic?: string | null; // Accident picture URL
-  inspectionReport?: string | null; // Inspection report URL
-  weighmentSlip?: string | null; // Weighment slip URL
+  inspectionReport?: string | null; // Inspection report URL (PDF only, Admin only)
+  lorryReceipt?: string | null; // Lorry receipt URL
+  insurancePolicy?: string | null; // Insurance policy URL
   damageFormUrl?: string | null; // Damage form PDF URL
   // Legacy field (deprecated)
   supportedMedia?: string[];
@@ -343,33 +342,22 @@ class AdminApi {
       // Handle both wrapped response and direct array
       let claims: ClaimRequest[] = [];
       
-      // Debug: Log the raw response
-      console.log("Raw API response:", response.data);
-      console.log("Is array?", Array.isArray(response.data));
-      
       if (Array.isArray(response.data)) {
         // Direct array response
         claims = response.data;
-        console.log("Using direct array, claims count:", claims.length);
       } else if (response.data?.data && Array.isArray(response.data.data)) {
         // Wrapped in ApiResponse object
         claims = response.data.data;
-        console.log("Using wrapped data.data, claims count:", claims.length);
       } else if (response.data?.success && Array.isArray(response.data.data)) {
         // Another wrapped format
         claims = response.data.data;
-        console.log("Using wrapped success.data, claims count:", claims.length);
-      } else {
-        console.warn("Unexpected response format:", response.data);
       }
 
-      // Normalize status field (backend may return lowercase, enum expects uppercase)
+      // Normalize status field (backend uses lowercase status values)
       claims = claims.map((claim) => ({
         ...claim,
-        status: (claim.status?.toUpperCase() as ClaimStatus) || ClaimStatus.PENDING,
+        status: (claim.status?.toLowerCase() as ClaimStatus) || ClaimStatus.PENDING,
       }));
-      
-      console.log("Final normalized claims:", claims.length);
 
       return {
         success: true,
@@ -473,7 +461,7 @@ class AdminApi {
    */
   public uploadClaimMedia = async (
     claimId: string,
-    mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip',
+    mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy',
     file: File
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
