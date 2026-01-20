@@ -464,7 +464,7 @@ export default function ClaimsPage() {
 
                                         {/* 3. FIR Document */}
                                         <MediaUploadSection
-                                            label="FIR Document"
+                                            label="FIR Copy"
                                             mediaType="fir"
                                             existingUrl={selectedClaim.fir}
                                             claimId={selectedClaim.id}
@@ -475,7 +475,7 @@ export default function ClaimsPage() {
 
                                         {/* 4. Insurance Policy */}
                                         <MediaUploadSection
-                                            label="Insurance Policy"
+                                            label="Insurance Copy"
                                             mediaType="insurancePolicy"
                                             existingUrl={selectedClaim.insurancePolicy}
                                             claimId={selectedClaim.id}
@@ -486,7 +486,7 @@ export default function ClaimsPage() {
 
                                         {/* 5. Lorry Receipt */}
                                         <MediaUploadSection
-                                            label="Lorry Receipt"
+                                            label="Transport Lorry Receipt"
                                             mediaType="lorryReceipt"
                                             existingUrl={selectedClaim.lorryReceipt}
                                             claimId={selectedClaim.id}
@@ -497,7 +497,7 @@ export default function ClaimsPage() {
 
                                         {/* 6. Inspection Report (Admin Only, PDF Only) */}
                                         <MediaUploadSection
-                                            label="Inspection Report (PDF - Admin Only)"
+                                            label="Joint Inspection Report (From Surveyor)" 
                                             mediaType="inspectionReport"
                                             existingUrl={selectedClaim.inspectionReport}
                                             claimId={selectedClaim.id}

@@ -20,7 +20,7 @@ import { useAdmin } from '../context/AdminContext';
 const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
     { name: 'Users', href: '/admin/users', icon: UsersIcon },
-    { name: 'Insurance Forms', href: '/admin/insurance-forms', icon: FolderIcon },
+    { name: 'Invoice / Insurance Forms', href: '/admin/insurance-forms', icon: FolderIcon },
     { name: 'Claim Requests', href: '/admin/claims', icon: ClipboardDocumentListIcon },
     {
     name: 'Edit Insurance PDF',
