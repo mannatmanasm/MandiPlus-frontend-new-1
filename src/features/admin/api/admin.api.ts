@@ -51,17 +51,24 @@ interface LoginResponse {
 
 export interface RegenerateInvoicePayload {
   invoiceId: string;
+  invoiceType?: string;
   invoiceDate?: string;
   terms?: string;
   supplierName?: string;
   supplierAddress?: string | string[];
+  placeOfSupply?: string;
   billToName?: string;
   billToAddress?: string | string[];
+  shipToName?: string;
+  shipToAddress?: string | string[];
   productName?: string;
+  hsnCode?: string;
   quantity?: number;
   rate?: number;
   amount?: number;
-  // Add other invoice fields as needed
+  vehicleNumber?: string;
+  truckNumber?: string;
+  weighmentSlipNote?: string;
 }
 
 export interface InvoiceFilterParams {
@@ -592,13 +599,13 @@ class AdminApi {
         data: {
           totalUsers: usersResponse.success
             ? (usersResponse.data as any)?.count ||
-              (usersResponse.data as any)?.users?.length ||
-              0
+            (usersResponse.data as any)?.users?.length ||
+            0
             : 0,
           totalForms: formsResponse.success
             ? (formsResponse.data as any)?.count ||
-              (formsResponse.data as any)?.forms?.length ||
-              0
+            (formsResponse.data as any)?.forms?.length ||
+            0
             : 0,
           totalClaims:
             claimsResponse.success && Array.isArray(claimsResponse.data)

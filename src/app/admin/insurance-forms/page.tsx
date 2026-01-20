@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '@/features/admin/context/AdminContext';
 import { formatDate, formatCurrency } from '@/features/admin/utils/format';
 import { adminApi, InvoiceFilterParams, RegenerateInvoicePayload } from '@/features/admin/api/admin.api';
 import { toast } from 'react-toastify';
+import 'cropperjs/dist/cropper.css';
+import Cropper, { ReactCropperElement } from "react-cropper";
+import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 // --- Debounce Hook ---
 function useDebounce<T>(value: T, delay: number): T {
@@ -32,10 +35,17 @@ interface Invoice {
     supplierAddress: string[];
     billToName: string;
     billToAddress?: string[];
+    shipToName?: string;
+    shipToAddress?: string[];
+    placeOfSupply?: string;
     productName: string[];
+    hsnCode?: string;
     quantity: number;
     rate?: number;
     amount: number;
+    vehicleNumber?: string;
+    truckNumber?: string;
+    weighmentSlipNote?: string;
     pdfUrl?: string;
     pdfURL?: string;
     createdAt: string;
@@ -57,6 +67,14 @@ export default function InsuranceFormsPage() {
     const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
     const [verifyingInvoiceId, setVerifyingInvoiceId] = useState<string | null>(null);
 
+    // --- Cropper & File State ---
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [imageSrc, setImageSrc] = useState<string | null>(null);
+    const [isCropping, setIsCropping] = useState(false);
+    const [isCropperReady, setIsCropperReady] = useState(false);
+    const [rotation, setRotation] = useState(0);
+    const [weightmentSlip, setWeightmentSlip] = useState<File | null>(null);
+    const cropperRef = useRef<ReactCropperElement>(null);
 
     const [filters, setFilters] = useState<InvoiceFilterParams>({
         invoiceType: '',
@@ -158,47 +176,47 @@ export default function InsuranceFormsPage() {
         }
     };
 
-const handleVerifyInvoice = async (invoiceId: string) => {
-  // Safety: agar already verifying chal raha ho
-  if (verifyingInvoiceId) return;
+    const handleVerifyInvoice = async (invoiceId: string) => {
+        // Safety: agar already verifying chal raha ho
+        if (verifyingInvoiceId) return;
 
-  const confirmed = window.confirm(
-    "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
-  );
+        const confirmed = window.confirm(
+            "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
+        );
 
-  if (!confirmed) return; // ❌ user cancelled
+        if (!confirmed) return; // ❌ user cancelled
 
-  try {
-    setVerifyingInvoiceId(invoiceId);
+        try {
+            setVerifyingInvoiceId(invoiceId);
 
-    toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
+            toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
 
-    const res = await adminApi.verifyInvoice(invoiceId);
+            const res = await adminApi.verifyInvoice(invoiceId);
 
-    if (!res.success) {
-      throw new Error(res.message || "Verification failed");
-    }
+            if (!res.success) {
+                throw new Error(res.message || "Verification failed");
+            }
 
-    toast.update("verify-invoice", {
-      render: "Invoice verified successfully",
-      type: "success",
-      isLoading: false,
-      autoClose: 2000,
-    });
+            toast.update("verify-invoice", {
+                render: "Invoice verified successfully",
+                type: "success",
+                isLoading: false,
+                autoClose: 2000,
+            });
 
-    // Refresh list to get isVerified=true
-    await fetchInvoices();
-  } catch (error: any) {
-    toast.update("verify-invoice", {
-      render: error.message || "Failed to verify invoice",
-      type: "error",
-      isLoading: false,
-      autoClose: 3000,
-    });
-  } finally {
-    setVerifyingInvoiceId(null);
-  }
-};
+            // Refresh list to get isVerified=true
+            await fetchInvoices();
+        } catch (error: any) {
+            toast.update("verify-invoice", {
+                render: error.message || "Failed to verify invoice",
+                type: "error",
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setVerifyingInvoiceId(null);
+        }
+    };
 
 
 
@@ -213,108 +231,163 @@ const handleVerifyInvoice = async (invoiceId: string) => {
 
     const handleEditClick = (invoice: Invoice) => {
         setEditingInvoice(invoice);
+        setWeightmentSlip(null); // Reset file
         setFormData({
             invoiceId: invoice.id,
+            invoiceType: 'BUYER_INVOICE',
             supplierName: invoice.supplierName,
             supplierAddress: Array.isArray(invoice.supplierAddress)
                 ? invoice.supplierAddress.join('\n')
                 : invoice.supplierAddress || '',
+            placeOfSupply: invoice.placeOfSupply || '',
             billToName: invoice.billToName,
             billToAddress: (Array.isArray(invoice.billToAddress)
                 ? invoice.billToAddress.join('\n')
                 : invoice.billToAddress) || '',
+            shipToName: invoice.shipToName || '',
+            shipToAddress: Array.isArray(invoice.shipToAddress)
+                ? invoice.shipToAddress.join('\n')
+                : invoice.shipToAddress || '',
             productName: Array.isArray(invoice.productName)
                 ? invoice.productName[0]
                 : invoice.productName || '',
-            quantity: invoice.quantity,
+            hsnCode: invoice.hsnCode || '',
+            quantity: invoice.quantity || 0,
             rate: invoice.rate || 0,
-            amount: invoice.amount,
+            amount: invoice.amount || 0,
+            vehicleNumber: invoice.vehicleNumber || '',
+            truckNumber: invoice.truckNumber || '',
+            weighmentSlipNote: invoice.weighmentSlipNote || '',
             invoiceDate: invoice.invoiceDate.split('T')[0],
             terms: invoice.terms || ''
         });
         setIsEditing(true);
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                setImageSrc(reader.result as string);
+                setIsCropping(true);
+                setIsCropperReady(false);
+                setRotation(0);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const rotateImage = (degrees: number) => {
+        setRotation(prev => (prev + degrees) % 360);
+        cropperRef.current?.cropper.rotateTo(rotation + degrees);
+    };
+
+    const handleCropComplete = () => {
+        const cropper = cropperRef.current?.cropper;
+        if (!cropper) return;
+        cropper.getCroppedCanvas({
+            minWidth: 300, minHeight: 300, maxWidth: 4096, maxHeight: 4096,
+            fillColor: '#fff', imageSmoothingEnabled: true, imageSmoothingQuality: 'high',
+        }).toBlob(blob => {
+            if (blob) {
+                setWeightmentSlip(new File([blob], 'updated-weightment-slip.jpg', { type: 'image/jpeg' }));
+                setIsCropping(false);
+                setImageSrc(null);
+            }
+        }, 'image/jpeg', 0.9);
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: name === 'quantity' || name === 'rate' || name === 'amount'
-                ? parseFloat(value) || 0
-                : value
+            [name]: value
         }));
     };
 
-const handleRegenerate = async () => {
-    if (!editingInvoice) return;
+    const handleRegenerate = async () => {
+        if (!editingInvoice) return;
 
-    setIsRegenerating(true);
+        setIsRegenerating(true);
 
-    try {
-        const payload: RegenerateInvoicePayload = {
-            ...formData,
-            invoiceId: editingInvoice.id,
+        try {
+            const payload: RegenerateInvoicePayload = {
+                ...formData,
+                invoiceId: editingInvoice.id,
 
-            supplierAddress: formData.supplierAddress
-                ? typeof formData.supplierAddress === 'string'
-                    ? formData.supplierAddress.split('\n').filter(Boolean)
-                    : formData.supplierAddress
-                : [],
+                supplierAddress: formData.supplierAddress
+                    ? typeof formData.supplierAddress === 'string'
+                        ? formData.supplierAddress.split('\n').filter(Boolean)
+                        : formData.supplierAddress
+                    : [],
 
-            billToAddress: formData.billToAddress
-                ? typeof formData.billToAddress === 'string'
-                    ? formData.billToAddress.split('\n').filter(Boolean)
-                    : formData.billToAddress
-                : [],
+                billToAddress: formData.billToAddress
+                    ? typeof formData.billToAddress === 'string'
+                        ? formData.billToAddress.split('\n').filter(Boolean)
+                        : formData.billToAddress
+                    : [],
 
-            productName: formData.productName || '',
-            quantity: Number(formData.quantity) || 0,
-            rate: Number(formData.rate) || 0,
-            amount: Number(formData.amount) || 0,
-        };
+                shipToAddress: formData.shipToAddress
+                    ? typeof formData.shipToAddress === 'string'
+                        ? formData.shipToAddress.split('\n').filter(Boolean)
+                        : formData.shipToAddress
+                    : [],
 
-        const response = await adminApi.regenerateInvoice(payload);
+                productName: formData.productName || '',
+                quantity: Number(formData.quantity) || 0,
+                rate: Number(formData.rate) || 0,
+                amount: Number(formData.amount) || 0,
+                vehicleNumber: formData.vehicleNumber || '',
+                truckNumber: formData.truckNumber || '',
+                weighmentSlipNote: formData.weighmentSlipNote || '',
+                invoiceDate: formData.invoiceDate,
+                terms: formData.terms || ''
+            };
 
-        // 👇 If we reached here, API succeeded (status 200)
-        const responseData = response?.data;
+            const response = await adminApi.regenerateInvoice(payload);
 
-        toast.success('Invoice updated and PDF regeneration queued successfully');
+            // 👇 If we reached here, API succeeded (status 200)
+            const responseData = response?.data;
 
-        await fetchInvoices();
+            toast.success('Invoice updated and PDF regeneration queued successfully');
 
-        setIsEditing(false);
-        setEditingInvoice(null);
+            await fetchInvoices();
 
-        const updatedInvoices = invoices.map(invoice =>
-            invoice.id === payload.invoiceId
-                ? {
-                      ...invoice,
-                      pdfUrl:
-                          responseData?.data?.pdfUrl ??
-                          responseData?.pdfUrl ??
-                          invoice.pdfUrl,
-                      pdfURL:
-                          responseData?.data?.pdfURL ??
-                          responseData?.pdfURL ??
-                          invoice.pdfURL,
-                  }
-                : invoice
-        );
+            setIsEditing(false);
+            setEditingInvoice(null);
 
-        setInvoices(updatedInvoices);
-    } catch (error: any) {
-        console.error('Error regenerating invoice:', error);
-        toast.error(error?.message || 'Failed to update invoice');
-    } finally {
-        setIsRegenerating(false);
-    }
-};
+            const updatedInvoices = invoices.map(invoice =>
+                invoice.id === payload.invoiceId
+                    ? {
+                        ...invoice,
+                        pdfUrl:
+                            responseData?.data?.pdfUrl ??
+                            responseData?.pdfUrl ??
+                            invoice.pdfUrl,
+                        pdfURL:
+                            responseData?.data?.pdfURL ??
+                            responseData?.pdfURL ??
+                            invoice.pdfURL,
+                    }
+                    : invoice
+            );
+
+            setInvoices(updatedInvoices);
+        } catch (error: any) {
+            console.error('Error regenerating invoice:', error);
+            toast.error(error?.message || 'Failed to update invoice');
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
 
 
     const closeModal = () => {
         setIsEditing(false);
         setEditingInvoice(null);
         setFormData({});
+        setWeightmentSlip(null);
     };
 
     const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
@@ -325,6 +398,29 @@ const handleRegenerate = async () => {
 
     return (
         <div className="py-6">
+            {/* --- NEW: Cropper Overlay --- */}
+            {isCropping && imageSrc && (
+                <div className="fixed inset-0 z-60 bg-black flex flex-col">
+                    <div className="flex-1 w-full relative min-h-0 bg-black">
+                        <Cropper
+                            src={imageSrc} style={{ height: '100%', width: '100%' }} ref={cropperRef}
+                            guides={true} viewMode={1} dragMode="move" autoCropArea={1} checkOrientation={true}
+                            ready={() => { setIsCropperReady(true); setRotation(0); }}
+                        />
+                    </div>
+                    <div className="w-full bg-black/90 p-4 flex justify-between items-center px-6 z-50 border-t border-gray-800">
+                        <div className="flex gap-4 text-white">
+                            <button type="button" onClick={() => rotateImage(-90)}><ArrowPathIcon className="w-6 h-6 transform rotate-90" /></button>
+                            <button type="button" onClick={() => rotateImage(90)}><ArrowPathIcon className="w-6 h-6 -scale-x-100 transform rotate-90" /></button>
+                        </div>
+                        <div className="flex gap-6">
+                            <button type="button" onClick={() => { setIsCropping(false); setImageSrc(null); }} className="text-red-500"><XMarkIcon className="w-8 h-8" /></button>
+                            <button type="button" onClick={handleCropComplete} disabled={!isCropperReady} className={isCropperReady ? 'text-[#25D366]' : 'text-gray-500'}><CheckIcon className="w-8 h-8" /></button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
@@ -421,10 +517,10 @@ const handleRegenerate = async () => {
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
                                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PDF</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Verify</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">Verify</th>
                                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -442,8 +538,8 @@ const handleRegenerate = async () => {
                                             <td className="px-3 py-4 text-sm text-gray-500">{formatDate(inv.invoiceDate)}</td>
                                             <td className="px-3 py-4 text-sm text-gray-500">{inv.supplierName}</td>
                                             <td className="px-3 py-4 text-sm text-gray-500">{inv.billToName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.quantity}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{formatCurrency(inv.amount)}</td>
+                                            <td className="px-3 py-4 text-sm text-gray-500">{Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}</td>
+                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.vehicleNumber || '-'}</td>
                                             <td className="px-3 py-4 text-center">
                                                 {(inv.pdfUrl || inv.pdfURL) ? (
                                                     <button
@@ -459,10 +555,10 @@ const handleRegenerate = async () => {
                                                     <span className="text-gray-300 text-xs uppercase font-medium">Pending</span>
                                                 )}
                                             </td>
-<td className="px-3 py-4 text-center">
-  {inv.isVerified ? (
-    <span
-      className="
+                                            <td className="px-3 py-4 text-center">
+                                                {inv.isVerified ? (
+                                                    <span
+                                                        className="
         inline-flex items-center gap-1
         text-xs font-semibold
         text-green-700
@@ -472,14 +568,14 @@ const handleRegenerate = async () => {
         rounded
         whitespace-nowrap
       "
-    >
-      <span className="text-green-600 text-sm leading-none">✓</span>
-      Verified
-    </span>
-  ) : (
-    <button
-      onClick={() => handleVerifyInvoice(inv.id)}
-      className="
+                                                    >
+                                                        <span className="text-green-600 text-sm leading-none">✓</span>
+                                                        Verified
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleVerifyInvoice(inv.id)}
+                                                        className="
         inline-flex items-center justify-center
         w-8 h-8
         text-green-600
@@ -488,18 +584,18 @@ const handleRegenerate = async () => {
         rounded
         transition-colors
       "
-      title="Verify Invoice"
-    >
-      <span className="text-lg leading-none">✓</span>
-    </button>
-  )}
-</td>
+                                                        title="Verify Invoice"
+                                                    >
+                                                        <span className="text-lg leading-none">✓</span>
+                                                    </button>
+                                                )}
+                                            </td>
 
 
-<td className="px-3 py-4 text-center">
-  <button
-    onClick={() => handleEditClick(inv)}
-    className="
+                                            <td className="px-3 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleEditClick(inv)}
+                                                    className="
       inline-flex items-center justify-center
       w-8 h-8
       text-blue-600
@@ -508,11 +604,11 @@ const handleRegenerate = async () => {
       rounded
       transition-colors
     "
-    title="Edit Invoice"
-  >
-    ✏️
-  </button>
-</td>
+                                                    title="Edit Invoice"
+                                                >
+                                                    ✏️
+                                                </button>
+                                            </td>
 
 
 
@@ -552,122 +648,271 @@ const handleRegenerate = async () => {
             {
                 isEditing && editingInvoice && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Edit Invoice #{editingInvoice?.invoiceNumber}
-                                </h3>
+                        <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl">
+                            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center rounded-t-3xl">
+                                <h3 className="text-xl font-bold text-slate-800">Update Invoice</h3>
+                                <button
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setEditingInvoice(null);
+                                        setError('');
+                                        setWeightmentSlip(null);
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ✕
+                                </button>
                             </div>
 
                             <div className="p-6 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Supplier Name</label>
-                                        <input
-                                            type="text"
-                                            name="supplierName"
-                                            value={formData.supplierName || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Bill To</label>
-                                        <input
-                                            type="text"
-                                            name="billToName"
-                                            value={formData.billToName || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Product Name</label>
-                                        <input
-                                            type="text"
-                                            name="productName"
-                                            value={formData.productName || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Invoice Date</label>
-                                        <input
-                                            type="date"
-                                            name="invoiceDate"
-                                            value={formData.invoiceDate || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Quantity</label>
-                                        <input
-                                            type="number"
-                                            name="quantity"
-                                            value={formData.quantity || ''}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Rate</label>
-                                        <input
-                                            type="number"
-                                            name="rate"
-                                            value={formData.rate || ''}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Amount</label>
-                                        <input
-                                            type="number"
-                                            name="amount"
-                                            value={formData.amount || ''}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-medium text-gray-700">Terms</label>
-                                        <input
-                                            type="text"
-                                            name="terms"
-                                            value={formData.terms || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
-                                        />
+                                {/* --- NEW: Image Upload Section --- */}
+                                <div className="border border-gray-300 rounded-xl p-4">
+                                    <label className="block text-sm font-medium text-slate-800 mb-2">Upload Weighment Slip</label>
+                                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                                    <div className="flex flex-col gap-3">
+                                        {weightmentSlip ? (
+                                            <div className="text-green-700 text-sm bg-green-50 p-2 rounded">{weightmentSlip.name}</div>
+                                        ) : (
+                                            <div className="text-gray-500 text-sm text-center">No new slip selected</div>
+                                        )}
+                                        <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
+                                            📸 {weightmentSlip ? 'Replace Photo' : 'Upload New Photo'}
+                                        </button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Supplier Address (one per line)</label>
-                                    <textarea
-                                        name="supplierAddress"
-                                        value={typeof formData.supplierAddress === 'string' ? formData.supplierAddress : ''}
-                                        onChange={handleInputChange}
-                                        rows={3}
-                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
+                                    Invoice: <span className="font-semibold">{editingInvoice.invoiceNumber}</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Invoice Type
+                                        </label>
+                                        <select
+                                            value={formData.invoiceType}
+                                            onChange={(e) => setFormData({ ...formData, invoiceType: e.target.value as any })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        >
+                                            <option value="BUYER_INVOICE">Buyer Invoice</option>
+                                            <option value="SUPPLIER_INVOICE">Supplier Invoice</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Supplier Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.supplierName}
+                                        onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter supplier name"
                                     />
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Bill To Address (one per line)</label>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Supplier Address
+                                    </label>
                                     <textarea
-                                        name="billToAddress"
-                                        value={typeof formData.billToAddress === 'string' ? formData.billToAddress : ''}
-                                        onChange={handleInputChange}
+                                        value={Array.isArray(formData.supplierAddress) ? formData.supplierAddress[0] : formData.supplierAddress}
+                                        onChange={(e) => setFormData({ ...formData, supplierAddress: [e.target.value] })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter supplier address"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Bill To Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.billToName}
+                                        onChange={(e) => setFormData({ ...formData, billToName: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter buyer name"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Bill To Address
+                                    </label>
+                                    <textarea
+                                        value={Array.isArray(formData.billToAddress) ? formData.billToAddress[0] : formData.billToAddress}
+                                        onChange={(e) => setFormData({ ...formData, billToAddress: [e.target.value] })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter buyer address"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Ship To Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.shipToName}
+                                        onChange={(e) => setFormData({ ...formData, shipToName: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter ship to name"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Ship To Address
+                                    </label>
+                                    <textarea
+                                        value={Array.isArray(formData.shipToAddress) ? formData.shipToAddress[0] : formData.shipToAddress}
+                                        onChange={(e) => setFormData({ ...formData, shipToAddress: [e.target.value] })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter shipping address"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Place of Supply
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.placeOfSupply}
+                                        onChange={(e) => setFormData({ ...formData, placeOfSupply: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter place of supply"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Product Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.productName}
+                                            onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="Enter product name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            HSN Code
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.hsnCode}
+                                            onChange={(e) => setFormData({ ...formData, hsnCode: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="Enter HSN code"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Quantity
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={formData.quantity}
+                                            onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Rate (₹)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={formData.rate}
+                                            onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) || 0 })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Vehicle Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.vehicleNumber}
+                                            onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="Enter vehicle number"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-800 mb-1">
+                                            Truck Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.truckNumber}
+                                            onChange={(e) => setFormData({ ...formData, truckNumber: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                            placeholder="Enter truck number"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Weighment Slip Note
+                                    </label>
+                                    <textarea
+                                        value={formData.weighmentSlipNote}
+                                        onChange={(e) => setFormData({ ...formData, weighmentSlipNote: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter any additional notes"
                                         rows={3}
-                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Invoice Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={formData.invoiceDate}
+                                        onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">
+                                        Terms
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.terms}
+                                        onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 placeholder-gray-400 bg-white"
+                                        placeholder="Enter terms"
                                     />
                                 </div>
                             </div>
@@ -675,8 +920,13 @@ const handleRegenerate = async () => {
                             <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
                                 <button
                                     type="button"
-                                    onClick={closeModal}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setEditingInvoice(null);
+                                        setError('');
+                                        setWeightmentSlip(null);
+                                    }}
+                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50"
                                     disabled={isRegenerating}
                                 >
                                     Cancel
@@ -684,18 +934,10 @@ const handleRegenerate = async () => {
                                 <button
                                     type="button"
                                     onClick={handleRegenerate}
-                                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                    className="flex-1 px-4 py-3 bg-[#4309ac] text-white rounded-xl font-medium hover:bg-[#350889] disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled={isRegenerating}
                                 >
-                                    {isRegenerating ? (
-                                        <>
-                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Updating...
-                                        </>
-                                    ) : 'Update & Regenerate PDF'}
+                                    {isRegenerating ? 'Updating...' : 'Update & Regenerate PDF'}
                                 </button>
                             </div>
                         </div>
