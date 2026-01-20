@@ -51,16 +51,24 @@ interface LoginResponse {
 
 export interface RegenerateInvoicePayload {
   invoiceId: string;
+  invoiceType?: string;
   invoiceDate?: string;
   terms?: string;
   supplierName?: string;
   supplierAddress?: string | string[];
+  placeOfSupply?: string;
   billToName?: string;
   billToAddress?: string | string[];
+  shipToName?: string;
+  shipToAddress?: string | string[];
   productName?: string;
-  vehicleNumber?: string;
+  hsnCode?: string;
+  quantity?: number;
   rate?: number;
-  // Add other invoice fields as needed
+  amount?: number;
+  vehicleNumber?: string;
+  truckNumber?: string;
+  weighmentSlipNote?: string;
 }
 
 export interface InvoiceFilterParams {
