@@ -50,10 +50,16 @@ export default function ClaimsPage() {
                 truckNumber: filters.truckNumber || undefined,
             });
             if (response.success && response.data) {
-                setClaims(response.data);
+                // Ensure we have an array
+                const claimsArray = Array.isArray(response.data) ? response.data : [];
+                setClaims(claimsArray);
+            } else {
+                console.error("Failed to fetch claims:", response.message || "Unknown error");
+                setClaims([]);
             }
         } catch (error) {
             console.error("Failed to fetch claims", error);
+            setClaims([]);
         } finally {
             setLoading(false);
         }
