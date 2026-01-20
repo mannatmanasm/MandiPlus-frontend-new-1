@@ -245,56 +245,71 @@ const handleVerifyInvoice = async (invoiceId: string) => {
         }));
     };
 
-    const handleRegenerate = async () => {
-        if (!editingInvoice) return;
+const handleRegenerate = async () => {
+    if (!editingInvoice) return;
 
-        setIsRegenerating(true);
-        try {
-            // Prepare the payload
-            const payload: RegenerateInvoicePayload = {
-                ...formData,
-                invoiceId: editingInvoice.id,
-                supplierAddress: formData.supplierAddress
-                    ? (typeof formData.supplierAddress === 'string'
-                        ? formData.supplierAddress.split('\n').filter(Boolean)
-                        : formData.supplierAddress)
-                    : [],
-                billToAddress: formData.billToAddress
-                    ? (typeof formData.billToAddress === 'string'
-                        ? formData.billToAddress.split('\n').filter(Boolean)
-                        : formData.billToAddress)
-                    : [],
-                productName: formData.productName || '',
-                quantity: formData.quantity || 0,
-                rate: formData.rate || 0,
-                amount: formData.amount || 0,
-            };
+    setIsRegenerating(true);
 
-            const response = await adminApi.regenerateInvoice(payload);
+    try {
+        const payload: RegenerateInvoicePayload = {
+            ...formData,
+            invoiceId: editingInvoice.id,
 
-            if (response.success) {
-                toast.success('Invoice updated and PDF regeneration queued successfully');
-                // Refresh the invoices list
-                await fetchInvoices();
-                setIsEditing(false);
-                setEditingInvoice(null);
-                // Update the invoice link in the local state
-                const updatedInvoices = invoices.map(invoice => {
-                    if (invoice.id === payload.invoiceId) {
-                        return { ...invoice, pdfUrl: response.data.pdfUrl, pdfURL: response.data.pdfURL };
-                    }
-                    return invoice;
-                });
-                setInvoices(updatedInvoices);
-            } else {
-                throw new Error(response.message || 'Failed to update invoice');
-            }
-        } catch (error: any) {
-            console.error('Error regenerating invoice:', error);
-        } finally {
-            setIsRegenerating(false);
-        }
-    };
+            supplierAddress: formData.supplierAddress
+                ? typeof formData.supplierAddress === 'string'
+                    ? formData.supplierAddress.split('\n').filter(Boolean)
+                    : formData.supplierAddress
+                : [],
+
+            billToAddress: formData.billToAddress
+                ? typeof formData.billToAddress === 'string'
+                    ? formData.billToAddress.split('\n').filter(Boolean)
+                    : formData.billToAddress
+                : [],
+
+            productName: formData.productName || '',
+            quantity: Number(formData.quantity) || 0,
+            rate: Number(formData.rate) || 0,
+            amount: Number(formData.amount) || 0,
+        };
+
+        const response = await adminApi.regenerateInvoice(payload);
+
+        // 👇 If we reached here, API succeeded (status 200)
+        const responseData = response?.data;
+
+        toast.success('Invoice updated and PDF regeneration queued successfully');
+
+        await fetchInvoices();
+
+        setIsEditing(false);
+        setEditingInvoice(null);
+
+        const updatedInvoices = invoices.map(invoice =>
+            invoice.id === payload.invoiceId
+                ? {
+                      ...invoice,
+                      pdfUrl:
+                          responseData?.data?.pdfUrl ??
+                          responseData?.pdfUrl ??
+                          invoice.pdfUrl,
+                      pdfURL:
+                          responseData?.data?.pdfURL ??
+                          responseData?.pdfURL ??
+                          invoice.pdfURL,
+                  }
+                : invoice
+        );
+
+        setInvoices(updatedInvoices);
+    } catch (error: any) {
+        console.error('Error regenerating invoice:', error);
+        toast.error(error?.message || 'Failed to update invoice');
+    } finally {
+        setIsRegenerating(false);
+    }
+};
+
 
     const closeModal = () => {
         setIsEditing(false);
