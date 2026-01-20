@@ -113,7 +113,12 @@ export default function ClaimsPage() {
         setShowDetailModal(true);
     };
 
-    const handleMediaUpload = async (claimId: string, mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip', file: File) => {
+    const handleMediaUpload = async (claimId: string, mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy', file: File) => {
+        // Validate inspectionReport is PDF only
+        if (mediaType === 'inspectionReport' && !file.type.includes('pdf')) {
+            alert('Inspection report must be a PDF file');
+            return;
+        }
         setUploadingMedia(mediaType);
         try {
             const response = await adminApi.uploadClaimMedia(claimId, mediaType, file);
@@ -142,14 +147,18 @@ export default function ClaimsPage() {
         setShowDamageModal(true);
     };
 
-    // Helper for Status Badge Color
+    // Helper for Status Badge Color (matches new status enum)
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'APPROVED': return 'bg-green-100 text-green-800';
-            case 'REJECTED': return 'bg-red-100 text-red-800';
-            case 'SURVEYOR_ASSIGNED': return 'bg-blue-100 text-blue-800';
-            case 'SETTLED': return 'bg-purple-100 text-purple-800';
-            default: return 'bg-yellow-100 text-yellow-800';
+            case 'completed':
+                return 'bg-green-100 text-green-800';
+            case 'inprogress':
+                return 'bg-blue-100 text-blue-800';
+            case 'surveyor_assigned':
+                return 'bg-purple-100 text-purple-800';
+            case 'pending':
+            default:
+                return 'bg-yellow-100 text-yellow-800';
         }
     };
 
@@ -401,29 +410,7 @@ export default function ClaimsPage() {
                                     <div className="space-y-4">
                                         <h4 className="font-semibold text-gray-900">Documents & Media</h4>
                                         
-                                        {/* FIR */}
-                                        <MediaUploadSection
-                                            label="FIR Document"
-                                            mediaType="fir"
-                                            existingUrl={selectedClaim.fir}
-                                            claimId={selectedClaim.id}
-                                            onUpload={handleMediaUpload}
-                                            uploading={uploadingMedia === 'fir'}
-                                            accept=".pdf,.doc,.docx"
-                                        />
-
-                                        {/* GPS Pictures */}
-                                        <MediaUploadSection
-                                            label="GPS Pictures"
-                                            mediaType="gpsPictures"
-                                            existingUrl={selectedClaim.gpsPictures}
-                                            claimId={selectedClaim.id}
-                                            onUpload={handleMediaUpload}
-                                            uploading={uploadingMedia === 'gpsPictures'}
-                                            accept=".jpg,.jpeg,.png,.gif"
-                                        />
-
-                                        {/* Accident Picture */}
+                                        {/* 1. Accident Picture */}
                                         <MediaUploadSection
                                             label="Accident Picture"
                                             mediaType="accidentPic"
@@ -434,33 +421,11 @@ export default function ClaimsPage() {
                                             accept=".jpg,.jpeg,.png,.gif"
                                         />
 
-                                        {/* Inspection Report */}
-                                        <MediaUploadSection
-                                            label="Inspection Report"
-                                            mediaType="inspectionReport"
-                                            existingUrl={selectedClaim.inspectionReport}
-                                            claimId={selectedClaim.id}
-                                            onUpload={handleMediaUpload}
-                                            uploading={uploadingMedia === 'inspectionReport'}
-                                            accept=".pdf,.doc,.docx"
-                                        />
-
-                                        {/* Weighment Slip */}
-                                        <MediaUploadSection
-                                            label="Weighment Slip"
-                                            mediaType="weighmentSlip"
-                                            existingUrl={selectedClaim.weighmentSlip}
-                                            claimId={selectedClaim.id}
-                                            onUpload={handleMediaUpload}
-                                            uploading={uploadingMedia === 'weighmentSlip'}
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                        />
-
-                                        {/* Damage Form */}
+                                        {/* 2. Damage Certificate */}
                                         <div className="border border-gray-200 rounded-lg p-4">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-gray-700">Damage Form</span>
+                                                    <span className="font-medium text-gray-700">Damage Certificate</span>
                                                     {selectedClaim.damageFormUrl ? (
                                                         <CheckIcon className="w-5 h-5 text-green-600" />
                                                     ) : null}
@@ -496,6 +461,50 @@ export default function ClaimsPage() {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* 3. FIR Document */}
+                                        <MediaUploadSection
+                                            label="FIR Document"
+                                            mediaType="fir"
+                                            existingUrl={selectedClaim.fir}
+                                            claimId={selectedClaim.id}
+                                            onUpload={handleMediaUpload}
+                                            uploading={uploadingMedia === 'fir'}
+                                            accept=".pdf,.doc,.docx"
+                                        />
+
+                                        {/* 4. Insurance Policy */}
+                                        <MediaUploadSection
+                                            label="Insurance Policy"
+                                            mediaType="insurancePolicy"
+                                            existingUrl={selectedClaim.insurancePolicy}
+                                            claimId={selectedClaim.id}
+                                            onUpload={handleMediaUpload}
+                                            uploading={uploadingMedia === 'insurancePolicy'}
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                        />
+
+                                        {/* 5. Lorry Receipt */}
+                                        <MediaUploadSection
+                                            label="Lorry Receipt"
+                                            mediaType="lorryReceipt"
+                                            existingUrl={selectedClaim.lorryReceipt}
+                                            claimId={selectedClaim.id}
+                                            onUpload={handleMediaUpload}
+                                            uploading={uploadingMedia === 'lorryReceipt'}
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                        />
+
+                                        {/* 6. Inspection Report (Admin Only, PDF Only) */}
+                                        <MediaUploadSection
+                                            label="Inspection Report (PDF - Admin Only)"
+                                            mediaType="inspectionReport"
+                                            existingUrl={selectedClaim.inspectionReport}
+                                            claimId={selectedClaim.id}
+                                            onUpload={handleMediaUpload}
+                                            uploading={uploadingMedia === 'inspectionReport'}
+                                            accept=".pdf"
+                                        />
                                     </div>
                                 </div>
                                 <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
@@ -589,10 +598,10 @@ function MediaUploadSection({
     accept
 }: {
     label: string;
-    mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip';
+    mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy';
     existingUrl?: string | null;
     claimId: string;
-    onUpload: (claimId: string, mediaType: 'fir' | 'gpsPictures' | 'accidentPic' | 'inspectionReport' | 'weighmentSlip', file: File) => void;
+    onUpload: (claimId: string, mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy', file: File) => void;
     uploading: boolean;
     accept: string;
 }) {
