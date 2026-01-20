@@ -40,6 +40,7 @@ interface Invoice {
     pdfURL?: string;
     createdAt: string;
     terms?: string;
+    isVerified?: boolean;
 }
 
 export default function InsuranceFormsPage() {
@@ -54,6 +55,8 @@ export default function InsuranceFormsPage() {
     const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
+    const [verifyingInvoiceId, setVerifyingInvoiceId] = useState<string | null>(null);
+
 
     const [filters, setFilters] = useState<InvoiceFilterParams>({
         invoiceType: '',
@@ -154,6 +157,51 @@ export default function InsuranceFormsPage() {
             setExporting(false);
         }
     };
+
+const handleVerifyInvoice = async (invoiceId: string) => {
+  // Safety: agar already verifying chal raha ho
+  if (verifyingInvoiceId) return;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
+  );
+
+  if (!confirmed) return; // ❌ user cancelled
+
+  try {
+    setVerifyingInvoiceId(invoiceId);
+
+    toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
+
+    const res = await adminApi.verifyInvoice(invoiceId);
+
+    if (!res.success) {
+      throw new Error(res.message || "Verification failed");
+    }
+
+    toast.update("verify-invoice", {
+      render: "Invoice verified successfully",
+      type: "success",
+      isLoading: false,
+      autoClose: 2000,
+    });
+
+    // Refresh list to get isVerified=true
+    await fetchInvoices();
+  } catch (error: any) {
+    toast.update("verify-invoice", {
+      render: error.message || "Failed to verify invoice",
+      type: "error",
+      isLoading: false,
+      autoClose: 3000,
+    });
+  } finally {
+    setVerifyingInvoiceId(null);
+  }
+};
+
+
+
 
     const handleViewPdf = (url: string | undefined) => {
         if (!url) return;
@@ -361,6 +409,7 @@ export default function InsuranceFormsPage() {
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PDF</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Verify</th>
                                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -395,17 +444,63 @@ export default function InsuranceFormsPage() {
                                                     <span className="text-gray-300 text-xs uppercase font-medium">Pending</span>
                                                 )}
                                             </td>
-                                            <td className="px-3 py-4 text-center">
-                                                <button
-                                                    onClick={() => handleEditClick(inv)}
-                                                    className="text-blue-600 hover:text-blue-900 inline-flex items-center p-1 rounded hover:bg-blue-50"
-                                                    title="Edit Invoice"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                    </svg>
-                                                </button>
-                                            </td>
+<td className="px-3 py-4 text-center">
+  {inv.isVerified ? (
+    <span
+      className="
+        inline-flex items-center gap-1
+        text-xs font-semibold
+        text-green-700
+        bg-green-100
+        border border-green-200
+        px-2 py-1
+        rounded
+        whitespace-nowrap
+      "
+    >
+      <span className="text-green-600 text-sm leading-none">✓</span>
+      Verified
+    </span>
+  ) : (
+    <button
+      onClick={() => handleVerifyInvoice(inv.id)}
+      className="
+        inline-flex items-center justify-center
+        w-8 h-8
+        text-green-600
+        hover:text-green-800
+        hover:bg-green-100
+        rounded
+        transition-colors
+      "
+      title="Verify Invoice"
+    >
+      <span className="text-lg leading-none">✓</span>
+    </button>
+  )}
+</td>
+
+
+<td className="px-3 py-4 text-center">
+  <button
+    onClick={() => handleEditClick(inv)}
+    className="
+      inline-flex items-center justify-center
+      w-8 h-8
+      text-blue-600
+      hover:text-blue-800
+      hover:bg-blue-100
+      rounded
+      transition-colors
+    "
+    title="Edit Invoice"
+  >
+    ✏️
+  </button>
+</td>
+
+
+
                                         </tr>
                                     ))
                                 )}

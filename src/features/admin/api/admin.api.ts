@@ -76,10 +76,13 @@ export interface InvoiceFilterParams {
 // --- ✅ NEW: Claim Request Interfaces ---
 
 export enum ClaimStatus {
-  PENDING = 'pending',
-  INPROGRESS = 'inprogress',
-  SURVEYOR_ASSIGNED = 'surveyor_assigned',
-  COMPLETED = 'completed',
+  PENDING = "pending",
+  INPROGRESS = "inprogress",
+  SURVEYOR_ASSIGNED = "surveyor_assigned",
+  COMPLETED = "completed",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  SETTLED = "SETTLED",
 }
 
 export interface ClaimRequest {
@@ -150,7 +153,7 @@ class AdminApi {
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Add response interceptor to handle errors
@@ -164,7 +167,7 @@ class AdminApi {
           }
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -183,12 +186,12 @@ class AdminApi {
 
   public login = async (
     email: string,
-    password: string
+    password: string,
   ): Promise<ApiResponse<LoginResponse>> => {
     try {
       const response = await this.client.post<ApiResponse<LoginResponse>>(
         "/admin/login",
-        { email, password }
+        { email, password },
       );
       if (response.data.success && response.data.data?.token) {
         this.setAuthToken(response.data.data.token);
@@ -206,12 +209,13 @@ class AdminApi {
   public getUsers = async (
     page: number = 1,
     limit: number = 10,
-    searchTerm: string = ""
+    searchTerm: string = "",
   ): Promise<ApiResponse<{ users: User[]; total: number }>> => {
     try {
-      const response = await this.client.get<
-        ApiResponse<{ users: User[]; total: number }>
-      >("/admin/users");
+      const response =
+        await this.client.get<ApiResponse<{ users: User[]; total: number }>>(
+          "/admin/users",
+        );
       return response.data;
     } catch (error: any) {
       return {
@@ -225,7 +229,7 @@ class AdminApi {
   public getInsuranceForms = async (
     page: number = 1,
     limit: number = 10,
-    searchTerm: string = ""
+    searchTerm: string = "",
   ): Promise<ApiResponse<{ forms: InsuranceForm[]; total: number }>> => {
     try {
       const response = await this.client.get<
@@ -245,7 +249,7 @@ class AdminApi {
   public getUserInsuranceForms = async (
     userId: string,
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
   ): Promise<ApiResponse<{ forms: InsuranceForm[]; total: number }>> => {
     try {
       const response = await this.client.get<
@@ -264,7 +268,7 @@ class AdminApi {
   };
 
   public filterInvoices = async (
-    filters: InvoiceFilterParams
+    filters: InvoiceFilterParams,
   ): Promise<ApiResponse<any[]>> => {
     try {
       const response = await this.client.get("/invoices/admin/filter", {
@@ -305,22 +309,42 @@ class AdminApi {
   };
 
   // Regenerate invoice with new data
-  public regenerateInvoice = async (payload: RegenerateInvoicePayload): Promise<ApiResponse<any>> => {
+  public regenerateInvoice = async (
+    payload: RegenerateInvoicePayload,
+  ): Promise<ApiResponse<any>> => {
     try {
       const response = await this.client.post<ApiResponse<any>>(
-        '/invoices/regenerate',
-        payload
+        "/invoices/regenerate",
+        payload,
       );
       return response.data;
     } catch (error: any) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to regenerate invoice',
+        message:
+          error.response?.data?.message || "Failed to regenerate invoice",
         error: error.message,
       };
     }
   };
 
+  // Verify invoice
+  public verifyInvoice = async (
+    invoiceId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.patch<ApiResponse<any>>(
+        `/invoices/${invoiceId}/verify`,
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to verify invoice",
+        error: error.message,
+      };
+    }
+  };
 
   // ============================================================
   // ✅ CLAIM REQUESTS MANAGEMENT (ADMIN)
@@ -331,17 +355,16 @@ class AdminApi {
    * Filters: status, truckNumber, invoiceId
    */
   public getClaims = async (
-    filters?: FilterClaimRequestsDto
+    filters?: FilterClaimRequestsDto,
   ): Promise<ApiResponse<ClaimRequest[]>> => {
     try {
-      const response = await this.client.get<any>(
-        "/claim-requests/admin",
-        { params: filters }
-      );
+      const response = await this.client.get<any>("/claim-requests/admin", {
+        params: filters,
+      });
 
       // Handle both wrapped response and direct array
       let claims: ClaimRequest[] = [];
-      
+
       if (Array.isArray(response.data)) {
         // Direct array response
         claims = response.data;
@@ -356,7 +379,8 @@ class AdminApi {
       // Normalize status field (backend uses lowercase status values)
       claims = claims.map((claim) => ({
         ...claim,
-        status: (claim.status?.toLowerCase() as ClaimStatus) || ClaimStatus.PENDING,
+        status:
+          (claim.status?.toLowerCase() as ClaimStatus) || ClaimStatus.PENDING,
       }));
 
       return {
@@ -366,8 +390,7 @@ class AdminApi {
     } catch (error: any) {
       return {
         success: false,
-        message:
-          error.response?.data?.message || "Failed to fetch claims",
+        message: error.response?.data?.message || "Failed to fetch claims",
         error: error.message,
       };
     }
@@ -377,11 +400,11 @@ class AdminApi {
    * Get a single claim by ID
    */
   public getClaimById = async (
-    id: string
+    id: string,
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
       const response = await this.client.get<ApiResponse<ClaimRequest>>(
-        `/claim-requests/${id}`
+        `/claim-requests/${id}`,
       );
 
       return {
@@ -403,12 +426,12 @@ class AdminApi {
    * Attaches claim to user's latest invoice for that truck
    */
   public createClaimForUser = async (
-    truckNumber: string
+    truckNumber: string,
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
       const response = await this.client.post<ApiResponse<ClaimRequest>>(
         "/claim-requests/by-truck",
-        { truckNumber }
+        { truckNumber },
       );
 
       return {
@@ -419,8 +442,7 @@ class AdminApi {
     } catch (error: any) {
       return {
         success: false,
-        message:
-          error.response?.data?.message || "Failed to create claim",
+        message: error.response?.data?.message || "Failed to create claim",
         error: error.message,
       };
     }
@@ -432,12 +454,12 @@ class AdminApi {
    */
   public updateClaimStatus = async (
     id: string,
-    updateData: UpdateClaimStatusDto
+    updateData: UpdateClaimStatusDto,
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
       const response = await this.client.patch<ApiResponse<ClaimRequest>>(
         `/claim-requests/${id}/status`,
-        updateData
+        updateData,
       );
 
       return {
@@ -461,21 +483,27 @@ class AdminApi {
    */
   public uploadClaimMedia = async (
     claimId: string,
-    mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy',
-    file: File
+
+    mediaType:
+      | "fir"
+      | "gpsPictures"
+      | "accidentPic"
+      | "inspectionReport"
+      | "weighmentSlip",
+    file: File,
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
 
       const response = await this.client.post<ClaimRequest>(
         `/claim-requests/${claimId}/media/${mediaType}`,
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
       return {
         success: true,
@@ -511,12 +539,12 @@ class AdminApi {
       agreedDamageAmountNumber: number;
       agreedDamageAmountWords: string;
       authorizedSignatoryName: string;
-    }
+    },
   ): Promise<ApiResponse<ClaimRequest>> => {
     try {
       const response = await this.client.post<ClaimRequest>(
         `/claim-requests/${claimId}/damage-form`,
-        damageFormData
+        damageFormData,
       );
       return {
         success: true,
@@ -526,7 +554,8 @@ class AdminApi {
     } catch (error: any) {
       return {
         success: false,
-        message: error.response?.data?.message || "Failed to submit damage form",
+        message:
+          error.response?.data?.message || "Failed to submit damage form",
         error: error.message,
       };
     }
@@ -535,7 +564,6 @@ class AdminApi {
   // ============================================================
   // END CLAIM REQUESTS
   // ============================================================
-
 
   public getDashboardStats = async (): Promise<
     ApiResponse<{
@@ -561,14 +589,19 @@ class AdminApi {
         success: true,
         data: {
           totalUsers: usersResponse.success
-            ? (usersResponse.data as any)?.count || (usersResponse.data as any)?.users?.length || 0
+            ? (usersResponse.data as any)?.count ||
+              (usersResponse.data as any)?.users?.length ||
+              0
             : 0,
           totalForms: formsResponse.success
-            ? (formsResponse.data as any)?.count || (formsResponse.data as any)?.forms?.length || 0
+            ? (formsResponse.data as any)?.count ||
+              (formsResponse.data as any)?.forms?.length ||
+              0
             : 0,
-          totalClaims: claimsResponse.success && Array.isArray(claimsResponse.data)
-            ? claimsResponse.data.length
-            : 0,
+          totalClaims:
+            claimsResponse.success && Array.isArray(claimsResponse.data)
+              ? claimsResponse.data.length
+              : 0,
           recentActivity: [],
         },
       };
