@@ -906,7 +906,7 @@ const HomePage = () => {
                   <div className="border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-700">Damage Certificate</span>
-                      <span className="text-xs text-gray-500">(Filled by transporter)</span>
+                      <span className="text-xs text-gray-500">(Filled by your transporter)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <a

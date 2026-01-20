@@ -412,7 +412,7 @@ export default function ClaimsPage() {
                                         
                                         {/* 1. Accident Picture */}
                                         <MediaUploadSection
-                                            label="Accident Picture"
+                                            label="Accident Picture (with GPS Tag)"
                                             mediaType="accidentPic"
                                             existingUrl={selectedClaim.accidentPic}
                                             claimId={selectedClaim.id}
