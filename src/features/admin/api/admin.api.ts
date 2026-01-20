@@ -335,14 +335,45 @@ class AdminApi {
     filters?: FilterClaimRequestsDto
   ): Promise<ApiResponse<ClaimRequest[]>> => {
     try {
-      const response = await this.client.get<ApiResponse<ClaimRequest[]>>(
+      const response = await this.client.get<any>(
         "/claim-requests/admin",
         { params: filters }
       );
 
+      // Handle both wrapped response and direct array
+      let claims: ClaimRequest[] = [];
+      
+      // Debug: Log the raw response
+      console.log("Raw API response:", response.data);
+      console.log("Is array?", Array.isArray(response.data));
+      
+      if (Array.isArray(response.data)) {
+        // Direct array response
+        claims = response.data;
+        console.log("Using direct array, claims count:", claims.length);
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        // Wrapped in ApiResponse object
+        claims = response.data.data;
+        console.log("Using wrapped data.data, claims count:", claims.length);
+      } else if (response.data?.success && Array.isArray(response.data.data)) {
+        // Another wrapped format
+        claims = response.data.data;
+        console.log("Using wrapped success.data, claims count:", claims.length);
+      } else {
+        console.warn("Unexpected response format:", response.data);
+      }
+
+      // Normalize status field (backend may return lowercase, enum expects uppercase)
+      claims = claims.map((claim) => ({
+        ...claim,
+        status: (claim.status?.toUpperCase() as ClaimStatus) || ClaimStatus.PENDING,
+      }));
+      
+      console.log("Final normalized claims:", claims.length);
+
       return {
         success: true,
-        data: response.data.data ?? [],
+        data: claims,
       };
     } catch (error: any) {
       return {
