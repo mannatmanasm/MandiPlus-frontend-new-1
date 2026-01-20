@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '@/features/admin/context/AdminContext';
 import { formatDate, formatCurrency } from '@/features/admin/utils/format';
-import { adminApi, InvoiceFilterParams } from '@/features/admin/api/admin.api';
+import { adminApi, InvoiceFilterParams, RegenerateInvoicePayload } from '@/features/admin/api/admin.api';
+import { toast } from 'react-toastify';
 
 // --- Debounce Hook ---
 function useDebounce<T>(value: T, delay: number): T {
@@ -30,12 +31,15 @@ interface Invoice {
     supplierName: string;
     supplierAddress: string[];
     billToName: string;
+    billToAddress?: string[];
     productName: string[];
     quantity: number;
+    rate?: number;
     amount: number;
     pdfUrl?: string;
     pdfURL?: string;
     createdAt: string;
+    terms?: string;
 }
 
 export default function InsuranceFormsPage() {
@@ -46,6 +50,10 @@ export default function InsuranceFormsPage() {
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+    const [isRegenerating, setIsRegenerating] = useState(false);
+    const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
 
     const [filters, setFilters] = useState<InvoiceFilterParams>({
         invoiceType: '',
@@ -155,6 +163,97 @@ export default function InsuranceFormsPage() {
         window.open(fullUrl, '_blank');
     };
 
+    const handleEditClick = (invoice: Invoice) => {
+        setEditingInvoice(invoice);
+        setFormData({
+            invoiceId: invoice.id,
+            supplierName: invoice.supplierName,
+            supplierAddress: Array.isArray(invoice.supplierAddress)
+                ? invoice.supplierAddress.join('\n')
+                : invoice.supplierAddress || '',
+            billToName: invoice.billToName,
+            billToAddress: (Array.isArray(invoice.billToAddress)
+                ? invoice.billToAddress.join('\n')
+                : invoice.billToAddress) || '',
+            productName: Array.isArray(invoice.productName)
+                ? invoice.productName[0]
+                : invoice.productName || '',
+            quantity: invoice.quantity,
+            rate: invoice.rate || 0,
+            amount: invoice.amount,
+            invoiceDate: invoice.invoiceDate.split('T')[0],
+            terms: invoice.terms || ''
+        });
+        setIsEditing(true);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: name === 'quantity' || name === 'rate' || name === 'amount'
+                ? parseFloat(value) || 0
+                : value
+        }));
+    };
+
+    const handleRegenerate = async () => {
+        if (!editingInvoice) return;
+
+        setIsRegenerating(true);
+        try {
+            // Prepare the payload
+            const payload: RegenerateInvoicePayload = {
+                ...formData,
+                invoiceId: editingInvoice.id,
+                supplierAddress: formData.supplierAddress
+                    ? (typeof formData.supplierAddress === 'string'
+                        ? formData.supplierAddress.split('\n').filter(Boolean)
+                        : formData.supplierAddress)
+                    : [],
+                billToAddress: formData.billToAddress
+                    ? (typeof formData.billToAddress === 'string'
+                        ? formData.billToAddress.split('\n').filter(Boolean)
+                        : formData.billToAddress)
+                    : [],
+                productName: formData.productName || '',
+                quantity: formData.quantity || 0,
+                rate: formData.rate || 0,
+                amount: formData.amount || 0,
+            };
+
+            const response = await adminApi.regenerateInvoice(payload);
+
+            if (response.success) {
+                toast.success('Invoice updated and PDF regeneration queued successfully');
+                // Refresh the invoices list
+                await fetchInvoices();
+                setIsEditing(false);
+                setEditingInvoice(null);
+                // Update the invoice link in the local state
+                const updatedInvoices = invoices.map(invoice => {
+                    if (invoice.id === payload.invoiceId) {
+                        return { ...invoice, pdfUrl: response.data.pdfUrl, pdfURL: response.data.pdfURL };
+                    }
+                    return invoice;
+                });
+                setInvoices(updatedInvoices);
+            } else {
+                throw new Error(response.message || 'Failed to update invoice');
+            }
+        } catch (error: any) {
+            console.error('Error regenerating invoice:', error);
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
+
+    const closeModal = () => {
+        setIsEditing(false);
+        setEditingInvoice(null);
+        setFormData({});
+    };
+
     const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
     const paginatedInvoices = invoices.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
@@ -262,6 +361,7 @@ export default function InsuranceFormsPage() {
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PDF</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
@@ -295,6 +395,17 @@ export default function InsuranceFormsPage() {
                                                     <span className="text-gray-300 text-xs uppercase font-medium">Pending</span>
                                                 )}
                                             </td>
+                                            <td className="px-3 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleEditClick(inv)}
+                                                    className="text-blue-600 hover:text-blue-900 inline-flex items-center p-1 rounded hover:bg-blue-50"
+                                                    title="Edit Invoice"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -326,6 +437,161 @@ export default function InsuranceFormsPage() {
                     </div>
                 )}
             </div>
+
+            {/* Edit Invoice Modal */}
+            {
+                isEditing && editingInvoice && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Edit Invoice #{editingInvoice?.invoiceNumber}
+                                </h3>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Supplier Name</label>
+                                        <input
+                                            type="text"
+                                            name="supplierName"
+                                            value={formData.supplierName || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Bill To</label>
+                                        <input
+                                            type="text"
+                                            name="billToName"
+                                            value={formData.billToName || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Product Name</label>
+                                        <input
+                                            type="text"
+                                            name="productName"
+                                            value={formData.productName || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Invoice Date</label>
+                                        <input
+                                            type="date"
+                                            name="invoiceDate"
+                                            value={formData.invoiceDate || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                                        <input
+                                            type="number"
+                                            name="quantity"
+                                            value={formData.quantity || ''}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                            step="0.01"
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Rate</label>
+                                        <input
+                                            type="number"
+                                            name="rate"
+                                            value={formData.rate || ''}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                            step="0.01"
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Amount</label>
+                                        <input
+                                            type="number"
+                                            name="amount"
+                                            value={formData.amount || ''}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                            step="0.01"
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-medium text-gray-700">Terms</label>
+                                        <input
+                                            type="text"
+                                            name="terms"
+                                            value={formData.terms || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">Supplier Address (one per line)</label>
+                                    <textarea
+                                        name="supplierAddress"
+                                        value={typeof formData.supplierAddress === 'string' ? formData.supplierAddress : ''}
+                                        onChange={handleInputChange}
+                                        rows={3}
+                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">Bill To Address (one per line)</label>
+                                    <textarea
+                                        name="billToAddress"
+                                        value={typeof formData.billToAddress === 'string' ? formData.billToAddress : ''}
+                                        onChange={handleInputChange}
+                                        rows={3}
+                                        className="w-full border border-gray-300 rounded-md p-2 text-sm text-black"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={closeModal}
+                                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                                    disabled={isRegenerating}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleRegenerate}
+                                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                    disabled={isRegenerating}
+                                >
+                                    {isRegenerating ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Updating...
+                                        </>
+                                    ) : 'Update & Regenerate PDF'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 }
