@@ -33,6 +33,13 @@ export interface InsuranceForm {
   date: string;
   invoicePdfUrl?: string;
   weightSlipPdfUrl?: string;
+
+  // ✅ ADD THIS
+  insurance?: {
+    fileUrl: string;
+    fileType: string;
+    uploadedAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   // Added fields relevant to claims
@@ -177,6 +184,24 @@ class AdminApi {
       },
     );
   }
+
+  public uploadInvoiceInsurance = async (invoiceId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("insuranceFile", file);
+
+    const response = await this.client.post(
+      `/invoices/${invoiceId}/insurance`,
+      formData,
+      {
+        headers: {
+          // 👇 override & REMOVE json content-type
+          "Content-Type": undefined,
+        },
+      },
+    );
+
+    return response.data;
+  };
 
   public setAuthToken = (token: string | null) => {
     this.authToken = token;
@@ -599,13 +624,13 @@ class AdminApi {
         data: {
           totalUsers: usersResponse.success
             ? (usersResponse.data as any)?.count ||
-            (usersResponse.data as any)?.users?.length ||
-            0
+              (usersResponse.data as any)?.users?.length ||
+              0
             : 0,
           totalForms: formsResponse.success
             ? (formsResponse.data as any)?.count ||
-            (formsResponse.data as any)?.forms?.length ||
-            0
+              (formsResponse.data as any)?.forms?.length ||
+              0
             : 0,
           totalClaims:
             claimsResponse.success && Array.isArray(claimsResponse.data)

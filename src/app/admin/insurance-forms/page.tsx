@@ -9,6 +9,8 @@ import { toast } from 'react-toastify';
 import 'cropperjs/dist/cropper.css';
 import Cropper, { ReactCropperElement } from "react-cropper";
 import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { FileText, RefreshCw, Upload ,Eye, CheckCircle, AlertCircle  } from 'lucide-react';
+import InsuranceUploadModal from '@/features/admin/components/InsuranceUploadModal';
 
 // --- Debounce Hook ---
 function useDebounce<T>(value: T, delay: number): T {
@@ -27,8 +29,13 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue;
 }
 
+const INSURANCE_OVERRIDES_KEY = 'admin_invoice_insurance_overrides';
+const getInvoiceKey = (inv: { id?: string; _id?: string; invoiceNumber?: string }) =>
+    inv?.id || inv?._id || inv?.invoiceNumber || '';
+
 interface Invoice {
     id: string;
+    _id?: string;
     invoiceNumber: string;
     invoiceDate: string;
     supplierName: string;
@@ -51,6 +58,11 @@ interface Invoice {
     createdAt: string;
     terms?: string;
     isVerified?: boolean;
+       insurance?: {
+        fileUrl: string;
+        fileType: string;
+        uploadedAt: string;
+    } | null;
 }
 
 export default function InsuranceFormsPage() {
@@ -58,10 +70,33 @@ export default function InsuranceFormsPage() {
     const { isAuthenticated } = useAdmin();
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    // Backend upload response currently returns only { success, message, fileUrl }
+    // and the filter endpoint may not include insurance details. Keep a local override map
+    // so UI can reflect uploaded insurance immediately.
+    const [insuranceOverrides, setInsuranceOverrides] = useState<
+        Record<string, { fileUrl: string; uploadedAt: string; fileType?: string }>
+    >(() => {
+        if (typeof window === 'undefined') return {};
+        try {
+            const stored = window.localStorage.getItem(INSURANCE_OVERRIDES_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch (e) {
+            console.error('Failed to load insurance overrides from storage', e);
+        }
+        return {};
+    });
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
     const [isEditing, setIsEditing] = useState(false);
+    // --- Insurance Upload ---
+const [showInsuranceModal, setShowInsuranceModal] = useState(false);
+const [selectedInvoiceForInsurance, setSelectedInvoiceForInsurance] =
+    useState<Invoice | null>(null);
+
     const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
@@ -124,7 +159,23 @@ export default function InsuranceFormsPage() {
                 new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
 
-            setInvoices(sortedData);
+            // Merge local insurance overrides (if backend list doesn't include insurance field yet)
+            const merged = sortedData.map((inv: any) => {
+                const key = getInvoiceKey(inv);
+                const override = key ? insuranceOverrides[key] : undefined;
+                if (!override) return inv;
+                // Always overlay insurance so refresh shows "Uploaded" even if backend omits it
+                return {
+                    ...inv,
+                    insurance: {
+                        fileUrl: override.fileUrl,
+                        uploadedAt: override.uploadedAt,
+                        fileType: override.fileType ?? 'application/pdf',
+                    },
+                };
+            });
+
+            setInvoices(merged);
 
         } catch (err: any) {
             console.error("Fetch error:", err);
@@ -132,7 +183,20 @@ export default function InsuranceFormsPage() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedFilters]);
+    }, [debouncedFilters, insuranceOverrides]);
+
+    // Persist overrides whenever they change
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.setItem(
+                INSURANCE_OVERRIDES_KEY,
+                JSON.stringify(insuranceOverrides),
+            );
+        } catch (e) {
+            console.error('Failed to save insurance overrides to storage', e);
+        }
+    }, [insuranceOverrides]);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -221,12 +285,29 @@ export default function InsuranceFormsPage() {
 
 
 
-    const handleViewPdf = (url: string | undefined) => {
-        if (!url) return;
-        const fullUrl = url.startsWith('http')
+    const toFullFileUrl = (url?: string) => {
+        if (!url) return '';
+        return url.startsWith('http')
             ? url
             : `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}${url}`;
-        window.open(fullUrl, '_blank');
+    };
+
+    const getInsuranceFileUrl = (inv: any): string | undefined => {
+        // Support multiple backend shapes defensively
+        const insurance = inv?.insurance;
+        if (typeof insurance === 'string') return insurance;
+        if (insurance?.fileUrl) return insurance.fileUrl;
+        if (insurance?.url) return insurance.url;
+        if (inv?.insuranceFileUrl) return inv.insuranceFileUrl;
+        if (inv?.insuranceUrl) return inv.insuranceUrl;
+        const key = getInvoiceKey(inv);
+        if (key && insuranceOverrides[key]) return insuranceOverrides[key].fileUrl;
+        return undefined;
+    };
+
+    const handleViewPdf = (url: string | undefined) => {
+        if (!url) return;
+        window.open(toFullFileUrl(url), '_blank');
     };
 
     const handleEditClick = (invoice: Invoice) => {
@@ -503,122 +584,192 @@ export default function InsuranceFormsPage() {
                     </div>
                 )}
 
-                {/* Table Section */}
-                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg bg-white">
-                    {loading && invoices.length === 0 ? (
-                        <div className="flex justify-center items-center h-64">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
-                        </div>
-                    ) : (
-                        <table className="min-w-full divide-y divide-gray-300">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PDF</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">Verify</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {paginatedInvoices.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
-                                            {loading ? 'Loading...' : 'No invoices found matching criteria.'}
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    paginatedInvoices.map((inv) => (
-                                        <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-3 py-4 text-sm font-medium text-gray-900">{inv.invoiceNumber}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{formatDate(inv.invoiceDate)}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.supplierName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.billToName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.vehicleNumber || '-'}</td>
-                                            <td className="px-3 py-4 text-center">
-                                                {(inv.pdfUrl || inv.pdfURL) ? (
-                                                    <button
-                                                        onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
-                                                        className="text-green-600 hover:text-green-900 inline-flex items-center p-1 rounded hover:bg-green-50"
-                                                        title="View PDF"
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                        </svg>
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-gray-300 text-xs uppercase font-medium">Pending</span>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-4 text-center">
-                                                {inv.isVerified ? (
-                                                    <span
-                                                        className="
-        inline-flex items-center gap-1
-        text-xs font-semibold
-        text-green-700
-        bg-green-100
-        border border-green-200
-        px-2 py-1
-        rounded
-        whitespace-nowrap
-      "
-                                                    >
-                                                        <span className="text-green-600 text-sm leading-none">✓</span>
-                                                        Verified
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleVerifyInvoice(inv.id)}
-                                                        className="
-        inline-flex items-center justify-center
-        w-8 h-8
-        text-green-600
-        hover:text-green-800
-        hover:bg-green-100
-        rounded
-        transition-colors
-      "
-                                                        title="Verify Invoice"
-                                                    >
-                                                        <span className="text-lg leading-none">✓</span>
-                                                    </button>
-                                                )}
-                                            </td>
+{/* Table Section */}
+<div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg bg-white">
+  {loading && invoices.length === 0 ? (
+    <div className="flex justify-center items-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+    </div>
+  ) : (
+    <table className="min-w-full divide-y divide-gray-300">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Buyer</th>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product Name</th>
+          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehicle Number</th>
+          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">PDF</th>
+          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">Verify</th>
+          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Upload Insurance</th>
+        </tr>
+      </thead>
 
+      <tbody className="divide-y divide-gray-200">
+        {paginatedInvoices.length === 0 ? (
+          <tr>
+            <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-500">
+              {loading ? 'Loading...' : 'No invoices found matching criteria.'}
+            </td>
+          </tr>
+        ) : (
+          paginatedInvoices.map((inv) => (
+            <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
 
-                                            <td className="px-3 py-4 text-center">
-                                                <button
-                                                    onClick={() => handleEditClick(inv)}
-                                                    className="
-      inline-flex items-center justify-center
-      w-8 h-8
-      text-blue-600
-      hover:text-blue-800
-      hover:bg-blue-100
-      rounded
-      transition-colors
-    "
-                                                    title="Edit Invoice"
-                                                >
-                                                    ✏️
-                                                </button>
-                                            </td>
+              {/* Invoice # */}
+              <td className="px-3 py-4 text-sm font-medium text-gray-900">
+                {inv.invoiceNumber}
+              </td>
 
+              {/* Date */}
+              <td className="px-3 py-4 text-sm text-gray-500">
+                {formatDate(inv.invoiceDate)}
+              </td>
 
+              {/* Supplier */}
+              <td className="px-3 py-4 text-sm text-gray-500">
+                {inv.supplierName}
+              </td>
 
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+              {/* Buyer */}
+              <td className="px-3 py-4 text-sm text-gray-500">
+                {inv.billToName}
+              </td>
+
+              {/* Product */}
+              <td className="px-3 py-4 text-sm text-gray-500">
+                {Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}
+              </td>
+
+              {/* Vehicle */}
+              <td className="px-3 py-4 text-sm text-gray-500">
+                {inv.vehicleNumber || '-'}
+              </td>
+
+              {/* Invoice PDF */}
+              <td className="px-3 py-4 text-center">
+                {(inv.pdfUrl || inv.pdfURL) ? (
+                  <button
+                    onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
+                    className="text-green-600 hover:bg-green-50 p-1 rounded"
+                    title="View Invoice PDF"
+                  >
+                    📄
+                  </button>
+                ) : (
+                  <span className="text-gray-300 text-xs">Pending</span>
+                )}
+              </td>
+
+              {/* Verify */}
+              <td className="px-3 py-4 text-center">
+                {inv.isVerified ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 border border-green-200 px-2 py-1 rounded">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleVerifyInvoice(inv.id)}
+                    className="w-8 h-8 text-green-600 hover:bg-green-100 rounded"
+                    title="Verify Invoice"
+                  >
+                    ✓
+                  </button>
+                )}
+              </td>
+
+              {/* Actions (ONLY invoice actions) */}
+              <td className="px-3 py-4 text-center">
+                <button
+                  onClick={() => handleEditClick(inv)}
+                  className="w-8 h-8 text-blue-600 hover:bg-blue-100 rounded"
+                  title="Edit Invoice"
+                >
+                  ✏️
+                </button>
+              </td>
+
+{/* Enhanced Upload Insurance Column */}
+<td className="px-3 py-4">
+  <div className="flex flex-col items-center gap-2">
+    
+    {/* Status Badge */}
+    {getInsuranceFileUrl(inv) ? (
+      <div className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
+        <CheckCircle className="w-3 h-3" />
+        <span>Uploaded</span>
+      </div>
+    ) : (
+      <div className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-1 rounded-full">
+        <AlertCircle className="w-3 h-3" />
+        <span>Pending</span>
+      </div>
+    )}
+
+    {/* Action Buttons */}
+    <div className="flex items-center gap-2">
+      
+      {/* View Button - Only if insurance exists */}
+      {getInsuranceFileUrl(inv) && (
+        <button
+          onClick={() => window.open(toFullFileUrl(getInsuranceFileUrl(inv)), '_blank')}
+          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors group relative border border-green-200"
+          title="View Insurance"
+        >
+          <Eye className="w-4 h-4" />
+          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+            View Insurance
+          </span>
+        </button>
+      )}
+
+      {/* Upload/Replace Button */}
+      <button
+        onClick={() => {
+          setSelectedInvoiceForInsurance(inv);
+          setShowInsuranceModal(true);
+        }}
+        className={`p-2 rounded-lg transition-colors group relative border ${
+          getInsuranceFileUrl(inv)
+            ? 'text-orange-600 hover:bg-orange-50 border-orange-200' 
+            : 'text-blue-600 hover:bg-blue-50 border-blue-200'
+        }`}
+        title={getInsuranceFileUrl(inv) ? 'Replace Insurance' : 'Upload Insurance'}
+      >
+        {getInsuranceFileUrl(inv) ? (
+          <RefreshCw className="w-4 h-4" />
+        ) : (
+          <Upload className="w-4 h-4" />
+        )}
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+          {getInsuranceFileUrl(inv) ? 'Replace' : 'Upload'}
+        </span>
+      </button>
+
+    </div>
+
+    {/* Upload Date - Show if exists */}
+    {inv.insurance?.uploadedAt && (
+      <span className="text-xs text-gray-500">
+        {new Date(inv.insurance.uploadedAt).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short'
+        })}
+      </span>
+    )}
+
+  </div>
+</td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  )}
+</div>
+
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
@@ -944,6 +1095,64 @@ export default function InsuranceFormsPage() {
                     </div>
                 )
             }
+            {showInsuranceModal && selectedInvoiceForInsurance && (
+                <InsuranceUploadModal
+                    invoice={selectedInvoiceForInsurance}
+                    onClose={() => {
+                        setShowInsuranceModal(false);
+                        setSelectedInvoiceForInsurance(null);
+                    }}
+                    onSuccess={async (updatedInvoice?: any) => {
+                        // Backend currently responds like: { success, message, fileUrl }
+                        // Keep a local override so row shows Uploaded/View/Replace immediately.
+                        const fileUrl =
+                            updatedInvoice?.fileUrl ??
+                            updatedInvoice?.data?.fileUrl ??
+                            updatedInvoice?.insurance?.fileUrl ??
+                            undefined;
+                        const invoiceId = selectedInvoiceForInsurance?.id;
+                        const invoiceKey = selectedInvoiceForInsurance
+                            ? getInvoiceKey(selectedInvoiceForInsurance)
+                            : invoiceId;
+
+                        if (invoiceKey && fileUrl) {
+                            const uploadedAt = new Date().toISOString();
+                            setInsuranceOverrides((prev) => ({
+                                ...prev,
+                                [invoiceKey]: { fileUrl, uploadedAt, fileType: 'application/pdf' },
+                            }));
+                            setInvoices((prev) =>
+                                prev.map((i) =>
+                                    getInvoiceKey(i) === invoiceKey
+                                        ? {
+                                              ...i,
+                                              insurance: {
+                                                  fileUrl,
+                                                  uploadedAt,
+                                                  fileType: 'application/pdf',
+                                              },
+                                          }
+                                        : i,
+                                ),
+                            );
+                        } else if (updatedInvoice?.id || updatedInvoice?._id) {
+                            // If backend ever starts returning full invoice object
+                            setInvoices((prev) =>
+                                prev.map((i) =>
+                                    getInvoiceKey(i) === getInvoiceKey(updatedInvoice)
+                                        ? { ...i, ...updatedInvoice }
+                                        : i,
+                                ),
+                            );
+                        }
+
+                        setShowInsuranceModal(false);
+                        setSelectedInvoiceForInsurance(null);
+                        await fetchInvoices(); // 🔥 MOST IMPORTANT
+                    }}
+                />
+            )}
+
         </div>
     );
 }

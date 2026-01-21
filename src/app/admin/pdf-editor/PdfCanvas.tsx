@@ -29,24 +29,6 @@ export default function PdfCanvas({
   const [start, setStart] = useState<{ x: number; y: number } | null>(null);
 
   /* --------------------------------------------------
-     KEYBOARD SHORTCUTS - CTRL+Z FOR UNDO
-  -------------------------------------------------- */
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Ctrl+Z or Cmd+Z for undo
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        if (actions.length > 0) {
-          setActions(actions.slice(0, -1));
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actions, setActions]);
-
-  /* --------------------------------------------------
      CREATE NEW CANVAS ON FILE / PAGE CHANGE
   -------------------------------------------------- */
   useEffect(() => {
@@ -70,13 +52,22 @@ export default function PdfCanvas({
     loadPdfPage(file, pageNumber, canvasEl).then((res) => {
       if (!res || !overlayRef.current) return;
 
+      // Match overlay CSS size to the rendered PDF canvas CSS size
+      overlayRef.current.style.width = canvasEl.style.width;
+      overlayRef.current.style.height = canvasEl.style.height;
+
+      // Keep overlay internal buffer in device pixels for crisp drawing
       overlayRef.current.width = canvasEl.width;
       overlayRef.current.height = canvasEl.height;
       setTotalPages(res.totalPages);
       
       // Pass canvas dimensions to parent
       if (onCanvasDimensionsChange) {
-        onCanvasDimensionsChange(canvasEl.width, canvasEl.height);
+        // IMPORTANT: actions are recorded in CSS pixel coordinates (mouse/pointer),
+        // so send CSS dimensions (not device pixels) to the PDF generator.
+        const cssW = Number.parseFloat(canvasEl.style.width || "0") || 0;
+        const cssH = Number.parseFloat(canvasEl.style.height || "0") || 0;
+        onCanvasDimensionsChange(cssW, cssH);
       }
       
       // Redraw all white rectangles for current page
@@ -100,6 +91,13 @@ export default function PdfCanvas({
     const ctx = overlayRef.current.getContext("2d")!;
     ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
     
+    // Scale drawing so actions (CSS px) map correctly to device-pixel canvas buffer
+    const rect = overlayRef.current.getBoundingClientRect();
+    const scaleX = rect.width ? overlayRef.current.width / rect.width : 1;
+    const scaleY = rect.height ? overlayRef.current.height / rect.height : 1;
+    ctx.save();
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+
     // Draw all white rectangles for current page
     actions
       .filter(a => a.page === pageNumber && a.type === "rect")
@@ -112,9 +110,11 @@ export default function PdfCanvas({
         ctx.lineWidth = 1;
         ctx.strokeRect(a.x, a.y, a.w, a.h);
       });
+
+    ctx.restore();
   }
 
-  function getMousePos(e: React.MouseEvent) {
+  function getPointerPos(e: React.PointerEvent) {
     const rect = overlayRef.current!.getBoundingClientRect();
     return {
       x: e.clientX - rect.left,
@@ -122,30 +122,38 @@ export default function PdfCanvas({
     };
   }
 
-  function onMouseDown(e: React.MouseEvent) {
-    setStart(getMousePos(e));
+  function onPointerDown(e: React.PointerEvent) {
+    if (!overlayRef.current) return;
+    overlayRef.current.setPointerCapture(e.pointerId);
+    setStart(getPointerPos(e));
   }
 
-  function onMouseMove(e: React.MouseEvent) {
+  function onPointerMove(e: React.PointerEvent) {
     if (!start || !overlayRef.current) return;
 
     const ctx = overlayRef.current.getContext("2d")!;
-    const { x, y } = getMousePos(e);
+    const { x, y } = getPointerPos(e);
 
     // Redraw existing actions first
     redrawActions();
-    
-    // Then draw current selection rectangle
+
+    // Draw current selection rectangle in CSS coordinates (transform handles scaling)
+    const rect = overlayRef.current.getBoundingClientRect();
+    const scaleX = rect.width ? overlayRef.current.width / rect.width : 1;
+    const scaleY = rect.height ? overlayRef.current.height / rect.height : 1;
+    ctx.save();
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
     ctx.strokeRect(start.x, start.y, x - start.x, y - start.y);
+    ctx.restore();
   }
 
-  function onMouseUp(e: React.MouseEvent) {
+  function onPointerUp(e: React.PointerEvent) {
     if (!start || !overlayRef.current) return;
 
-    const { x, y } = getMousePos(e);
+    const { x, y } = getPointerPos(e);
 
     const rect = {
       x: Math.min(start.x, x),
@@ -158,7 +166,7 @@ export default function PdfCanvas({
       setActions([
         ...actions,
         { type: "rect" as const, page: pageNumber, ...rect },
-      ].slice(-6));
+      ]);
     }
 
     setStart(null);
@@ -177,9 +185,9 @@ export default function PdfCanvas({
     <canvas
       ref={overlayRef}
       className="absolute top-0 left-0 cursor-crosshair"
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
     />
   </div>
 
