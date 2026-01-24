@@ -30,6 +30,15 @@ export interface RegisterPayload {
     state: string;
 }
 
+export interface AgentRegisterPayload {
+    agentName: string;
+    phoneNumber: string;
+    state: string;
+    mandiName: string;
+    aadhaarNumber: string;
+    aadhaarPhoto: File;
+}
+
 // --- HELPER ---
 
 export const setAuthToken = (token: string | null): void => {
@@ -90,6 +99,36 @@ export const register = async (data: RegisterPayload): Promise<AuthResponse> => 
     } catch (error) {
         const err = error as AxiosError<{ message: string }>;
         throw new Error(err.response?.data?.message || 'Registration failed');
+    }
+};
+
+// Agent Signup (multipart/form-data)
+export const agentRegister = async (data: AgentRegisterPayload): Promise<{ accessToken: string }> => {
+    try {
+        const formData = new FormData();
+        formData.append("agentName", data.agentName);
+        formData.append("phoneNumber", data.phoneNumber);
+        formData.append("state", data.state);
+        formData.append("mandiName", data.mandiName);
+        formData.append("aadhaarNumber", data.aadhaarNumber);
+        formData.append("aadhaarPhoto", data.aadhaarPhoto);
+
+        const response = await axios.post(`${API_BASE_URL}/auth/agent-register`, formData, {
+            withCredentials: true,
+            headers: {
+                // Let browser set multipart boundary
+                "Content-Type": undefined,
+            },
+        });
+
+        if (response.data?.accessToken) {
+            setAuthToken(response.data.accessToken);
+        }
+
+        return response.data;
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Agent registration failed");
     }
 };
 

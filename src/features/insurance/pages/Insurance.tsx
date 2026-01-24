@@ -16,6 +16,7 @@ import {
 import Cropper, { ReactCropperElement } from 'react-cropper';
 
 import { createInsuranceForm } from '../api';
+import { useAuth } from "@/features/auth/context/AuthContext";
 
 // --- Types ---
 interface FormData {
@@ -156,6 +157,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 const Insurance = () => {
     const router = useRouter();
+    const { user } = useAuth();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textInputRef = useRef<HTMLInputElement>(null);
@@ -381,7 +383,8 @@ const Insurance = () => {
                 window.location.href = finalLink;
             } else {
                 setMessages(prev => [...prev, { text: 'PDF is generating... Redirecting to My Forms.', sender: 'bot' }]);
-                setTimeout(() => router.push("/home"), 2000);
+                const target = user?.identity === "AGENT" ? "/agent/dashboard" : "/home";
+                setTimeout(() => router.push(target), 2000);
             }
 
         } catch (err: any) {
@@ -642,7 +645,10 @@ const Insurance = () => {
             <div className="bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white px-4 py-4 flex items-center justify-between shadow-lg z-10 shrink-0">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => router.push('/home')}
+                        onClick={() => {
+                            const target = user?.identity === "AGENT" ? "/agent/dashboard" : "/home";
+                            router.push(target);
+                        }}
                         className="p-2 rounded-full hover:bg-[#128C7E] transition-all duration-200 active:scale-95"
                         aria-label="Go back"
                     >

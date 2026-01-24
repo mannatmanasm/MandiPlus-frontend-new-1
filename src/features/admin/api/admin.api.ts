@@ -87,6 +87,19 @@ export interface InvoiceFilterParams {
   userId?: string;
 }
 
+export interface AdminAgentCommissionSummaryRow {
+  agentId: string;
+  agentName: string;
+  mandiName: string;
+  totalInvoices: number | string;
+  totalCommissionEarned: number | string;
+  totalCommissionPaid: number | string;
+  pendingCommission: number | string;
+  // Some backends may include an id/commissionId for actions; keep optional
+  id?: string;
+  commissionId?: string;
+}
+
 // --- ✅ NEW: Claim Request Interfaces ---
 
 export enum ClaimStatus {
@@ -377,6 +390,56 @@ class AdminApi {
       };
     }
   };
+
+  // ============================================================
+  // ✅ AGENT COMMISSIONS (ADMIN)
+  // ============================================================
+
+  public getAgentCommissionSummaries = async (): Promise<
+    ApiResponse<AdminAgentCommissionSummaryRow[]>
+  > => {
+    try {
+      const response = await this.client.get<AdminAgentCommissionSummaryRow[]>(
+        "/commissions/admin/agents",
+      );
+
+      const rows = Array.isArray(response.data)
+        ? response.data
+        : ((response.data as any)?.data ?? []);
+
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message ||
+          "Failed to fetch agent commission summaries",
+        error: error.message,
+      };
+    }
+  };
+
+  public markCommissionPaid = async (
+    commissionId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.patch(
+        `/commissions/${commissionId}/mark-paid`,
+      );
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to mark commission as paid",
+        error: error.message,
+      };
+    }
+  };
+
+  // ============================================================
+  // END AGENT COMMISSIONS
+  // ============================================================
 
   // ============================================================
   // ✅ CLAIM REQUESTS MANAGEMENT (ADMIN)

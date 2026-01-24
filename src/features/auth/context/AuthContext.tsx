@@ -108,8 +108,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // 4. Redirect
-        console.log("🚀 [AuthContext] Redirecting to /home");
-        router.push("/home");
+        const identity = finalUser?.identity;
+        const redirectPath = identity === "AGENT" ? "/agent/dashboard" : "/home";
+        console.log(`🚀 [AuthContext] Redirecting to ${redirectPath}`);
+        router.push(redirectPath);
     };
 
     const logout = () => {

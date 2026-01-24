@@ -83,7 +83,6 @@ const RegisterPage = () => {
       if (response.accessToken) {
         await login(response.accessToken, response.user);
         toast.success("Account created successfully!");
-        router.push("/home");
       }
 
     } catch (error: any) {
