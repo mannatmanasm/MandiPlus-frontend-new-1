@@ -85,6 +85,7 @@ export interface InvoiceFilterParams {
   supplierName?: string;
   buyerName?: string;
   userId?: string;
+  exportType?: "all" | "payment";
 }
 
 export interface AdminAgentCommissionSummaryRow {
