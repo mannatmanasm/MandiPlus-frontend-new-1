@@ -58,7 +58,8 @@ interface Invoice {
     createdAt: string;
     terms?: string;
     isVerified?: boolean;
-       insurance?: {
+    isSelected?: boolean;
+    insurance?: {
         fileUrl: string;
         fileType: string;
         uploadedAt: string;
@@ -101,6 +102,8 @@ const [selectedInvoiceForInsurance, setSelectedInvoiceForInsurance] =
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
     const [verifyingInvoiceId, setVerifyingInvoiceId] = useState<string | null>(null);
+    const [exportType, setExportType] = useState<'all' | 'payment'>('all');
+
 
     // --- Cropper & File State ---
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -212,33 +215,63 @@ const [selectedInvoiceForInsurance, setSelectedInvoiceForInsurance] =
         setCurrentPage(1);
     };
 
-    const handleExport = async () => {
-        setExporting(true);
-        try {
-            const body = {
-                invoiceType: filters.invoiceType || undefined,
-                startDate: filters.startDate ? new Date(filters.startDate).toISOString() : undefined,
-                endDate: filters.endDate ? new Date(filters.endDate).toISOString() : undefined,
-            };
-
-            const blob = await adminApi.exportInvoices(body);
-            if (blob) {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `invoices_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            }
-        } catch (err) {
-            console.error("Export failed:", err);
-            alert("Failed to export invoices");
-        } finally {
-            setExporting(false);
-        }
+const handleExport = async () => {
+  setExporting(true);
+  try {
+    const body: any = {
+      exportType: exportType, // This will be 'payment' when "Payment Export" is selected
     };
+
+    // Always provide dates (default to last 30 days if not set)
+    if (filters.startDate && filters.endDate) {
+      body.startDate = new Date(filters.startDate).toISOString();
+      body.endDate = new Date(filters.endDate).toISOString();
+    } else {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      
+      body.startDate = startDate.toISOString();
+      body.endDate = endDate.toISOString();
+    }
+    
+    // Only add invoiceType if it's not payment export
+    if (filters.invoiceType && exportType === 'all') {
+      body.invoiceType = filters.invoiceType;
+    }
+
+    console.log("📤 Export payload:", body);
+
+    const blob = await adminApi.exportInvoices(body);
+    
+    if (blob) {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fileName =
+        exportType === 'payment'
+          ? `payment_export_${timestamp}.xlsx`
+          : `invoices_export_${timestamp}.xlsx`;
+
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('✅ Export successful!');
+    }
+  } catch (err: any) {
+    console.error("❌ Export failed:", err);
+    const errorMsg = err?.response?.data?.message || err?.message || "Failed to export";
+    toast.error(errorMsg);
+  } finally {
+    setExporting(false);
+  }
+};
+
 
     const handleVerifyInvoice = async (invoiceId: string) => {
         // Safety: agar already verifying chal raha ho
@@ -504,78 +537,103 @@ const [selectedInvoiceForInsurance, setSelectedInvoiceForInsurance] =
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-semibold text-gray-900">
-                        Invoices / Insurance Forms
-                    </h1>
-                    <button
-                        onClick={handleExport}
-                        disabled={exporting || loading}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center disabled:opacity-50 transition-colors"
-                    >
-                        {exporting ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Exporting...
-                            </>
-                        ) : 'Export to Excel'}
-                    </button>
-                </div>
+// ✅ NAYA CODE - YE DAALO
+<div className="flex justify-between items-center mb-6">
+  <h1 className="text-2xl font-semibold text-gray-900">
+    Invoices / Insurance Forms
+  </h1>
+  
+  {/* Simple Export Button */}
+  <button
+    onClick={handleExport}
+    disabled={exporting || loading}
+    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+  >
+    {exporting ? (
+      <>
+        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Exporting...
+      </>
+    ) : (
+      <>
+        <FileText className="w-4 h-4" />
+        Export to Excel
+      </>
+    )}
+  </button>
+</div>
 
                 {/* Filter Section */}
-                <div className="bg-white text-black p-4 rounded-lg shadow mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <select
-                        name="invoiceType"
-                        value={filters.invoiceType}
-                        onChange={handleFilterChange}
-                        className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                    >
-                        <option value="">All Types</option>
-                        <option value="SUPPLIER_INVOICE">Supplier Invoice</option>
-                        <option value="BUYER_INVOICE">Buyer Invoice</option>
-                    </select>
 
-                    {/* Updated to datetime-local */}
-                    <input
-                        type="datetime-local"
-                        name="startDate"
-                        value={filters.startDate}
-                        onChange={handleFilterChange}
-                        className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                        placeholder="Start Date & Time"
-                    />
+<div className="bg-white text-black p-4 rounded-lg shadow mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+  
+  {/* 🔥 UPDATED: Invoice Type + Export Type Combined */}
+<select
+  name="invoiceType"
+  value={
+    exportType === 'payment' 
+      ? 'PAYMENT_EXPORT'           // Show "Payment Export" when payment mode
+      : (filters.invoiceType || '') // Show selected filter or "All Invoices"
+  }
+  onChange={(e) => {
+    const value = e.target.value;
+    
+    if (value === 'PAYMENT_EXPORT') {
+      setExportType('payment');
+      setFilters(prev => ({ ...prev, invoiceType: '' }));
+    } else {
+      setExportType('all');
+      setFilters(prev => ({ ...prev, invoiceType: value }));
+    }
+  }}
+  className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+>
+  <option value="">All Invoices</option>
+  <option value="SUPPLIER_INVOICE">Supplier Invoice</option>
+  <option value="BUYER_INVOICE">Buyer Invoice</option>
+  <option value="PAYMENT_EXPORT">Payment Export</option>
+</select>
 
-                    {/* Updated to datetime-local */}
-                    <input
-                        type="datetime-local"
-                        name="endDate"
-                        value={filters.endDate}
-                        onChange={handleFilterChange}
-                        className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                        placeholder="End Date & Time"
-                    />
+  {/* Date Filters - SAME AS BEFORE */}
+  <input
+    type="datetime-local"
+    name="startDate"
+    value={filters.startDate}
+    onChange={handleFilterChange}
+    className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+    placeholder="Start Date & Time"
+  />
 
-                    <input
-                        type="text"
-                        name="supplierName"
-                        placeholder="Search Supplier..."
-                        value={filters.supplierName}
-                        onChange={handleFilterChange}
-                        className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                    />
+  <input
+    type="datetime-local"
+    name="endDate"
+    value={filters.endDate}
+    onChange={handleFilterChange}
+    className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+    placeholder="End Date & Time"
+  />
 
-                    <input
-                        type="text"
-                        name="buyerName"
-                        placeholder="Search Buyer..."
-                        value={filters.buyerName}
-                        onChange={handleFilterChange}
-                        className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                    />
-                </div>
+  <input
+    type="text"
+    name="supplierName"
+    placeholder="Search Supplier..."
+    value={filters.supplierName}
+    onChange={handleFilterChange}
+    className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+  />
+
+  <input
+    type="text"
+    name="buyerName"
+    placeholder="Search Buyer..."
+    value={filters.buyerName}
+    onChange={handleFilterChange}
+    className="border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+  />
+</div>
 
                 {/* Error Banner */}
                 {error && (
