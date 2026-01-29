@@ -11,6 +11,7 @@ import Cropper, { ReactCropperElement } from "react-cropper";
 import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { FileText, RefreshCw, Upload ,Eye, CheckCircle, AlertCircle  } from 'lucide-react';
 import InsuranceUploadModal from '@/features/admin/components/InsuranceUploadModal';
+import { uploadWeighmentSlips } from '@/features/insurance/api';
 
 // --- Debounce Hook ---
 function useDebounce<T>(value: T, delay: number): T {
@@ -420,81 +421,57 @@ const handleExport = async () => {
         }));
     };
 
-    const handleRegenerate = async () => {
-        if (!editingInvoice) return;
+const handleRegenerate = async () => {
+  if (!editingInvoice) return;
 
-        setIsRegenerating(true);
+  setIsRegenerating(true);
 
-        try {
-            const payload: RegenerateInvoicePayload = {
-                ...formData,
-                invoiceId: editingInvoice.id,
+  try {
+    // 1) Upload new slip first (same working API)
+    if (weightmentSlip) {
+      await uploadWeighmentSlips(editingInvoice.id, [weightmentSlip]);
+    }
 
-                supplierAddress: formData.supplierAddress
-                    ? typeof formData.supplierAddress === 'string'
-                        ? formData.supplierAddress.split('\n').filter(Boolean)
-                        : formData.supplierAddress
-                    : [],
+    // 2) Build payload
+    const payload: RegenerateInvoicePayload = {
+      ...formData,
+      invoiceId: editingInvoice.id,
 
-                billToAddress: formData.billToAddress
-                    ? typeof formData.billToAddress === 'string'
-                        ? formData.billToAddress.split('\n').filter(Boolean)
-                        : formData.billToAddress
-                    : [],
+      supplierAddress: typeof formData.supplierAddress === "string"
+        ? formData.supplierAddress.split("\n").filter(Boolean)
+        : formData.supplierAddress || [],
 
-                shipToAddress: formData.shipToAddress
-                    ? typeof formData.shipToAddress === 'string'
-                        ? formData.shipToAddress.split('\n').filter(Boolean)
-                        : formData.shipToAddress
-                    : [],
+      billToAddress: typeof formData.billToAddress === "string"
+        ? formData.billToAddress.split("\n").filter(Boolean)
+        : formData.billToAddress || [],
 
-                productName: formData.productName || '',
-                quantity: Number(formData.quantity) || 0,
-                rate: Number(formData.rate) || 0,
-                amount: Number(formData.amount) || 0,
-                vehicleNumber: formData.vehicleNumber || '',
-                truckNumber: formData.truckNumber || '',
-                weighmentSlipNote: formData.weighmentSlipNote || '',
-                invoiceDate: formData.invoiceDate,
-                terms: formData.terms || ''
-            };
+      shipToAddress: typeof formData.shipToAddress === "string"
+        ? formData.shipToAddress.split("\n").filter(Boolean)
+        : formData.shipToAddress || [],
 
-            const response = await adminApi.regenerateInvoice(payload);
-
-            // 👇 If we reached here, API succeeded (status 200)
-            const responseData = response?.data;
-
-            toast.success('Invoice updated and PDF regeneration queued successfully');
-
-            await fetchInvoices();
-
-            setIsEditing(false);
-            setEditingInvoice(null);
-
-            const updatedInvoices = invoices.map(invoice =>
-                invoice.id === payload.invoiceId
-                    ? {
-                        ...invoice,
-                        pdfUrl:
-                            responseData?.data?.pdfUrl ??
-                            responseData?.pdfUrl ??
-                            invoice.pdfUrl,
-                        pdfURL:
-                            responseData?.data?.pdfURL ??
-                            responseData?.pdfURL ??
-                            invoice.pdfURL,
-                    }
-                    : invoice
-            );
-
-            setInvoices(updatedInvoices);
-        } catch (error: any) {
-            console.error('Error regenerating invoice:', error);
-            toast.error(error?.message || 'Failed to update invoice');
-        } finally {
-            setIsRegenerating(false);
-        }
+      quantity: Number(formData.quantity) || 0,
+      rate: Number(formData.rate) || 0,
+      amount: Number(formData.amount) || 0,
     };
+
+    // 3) Regenerate PDF only
+    await adminApi.regenerateInvoice(payload);
+
+    toast.success("Invoice updated & PDF regenerated");
+
+    // 4) Refresh
+    await fetchInvoices();
+
+    closeModal();
+
+  } catch (error: any) {
+    console.error("Regenerate error:", error);
+    toast.error(error?.message || "Failed to regenerate invoice");
+  } finally {
+    setIsRegenerating(false);
+  }
+};
+
 
 
     const closeModal = () => {
