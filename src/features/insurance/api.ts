@@ -118,7 +118,7 @@ export interface ApiError {
  * POST /invoices
  */
 export const createInsuranceForm = async (
-  formData: FormData
+  formData: FormData,
 ): Promise<CreateInsuranceResponse> => {
   try {
     const token = localStorage.getItem("token");
@@ -160,7 +160,7 @@ export const getMyInsuranceForms = async (): Promise<InsuranceForm[]> => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
     return response.data;
   } catch (error) {
@@ -184,7 +184,7 @@ export const getMyClaimsForms = async (): Promise<ClaimRequest[]> => {
       `${API_BASE_URL}/claim-requests/user/${user.id}`,
       {
         headers: { Authorization: `Bearer ${token}` },
-      }
+      },
     );
     return response.data;
   } catch (error) {
@@ -198,14 +198,14 @@ export const getMyClaimsForms = async (): Promise<ClaimRequest[]> => {
  * POST /claim-requests/by-truck
  */
 export const createClaimByTruck = async (
-  truckNumber: string
+  truckNumber: string,
 ): Promise<ClaimRequest> => {
   try {
     const token = localStorage.getItem("accessToken");
     const response = await axios.post(
       `${API_BASE_URL}/claim-requests/by-truck`,
       { truckNumber },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     return response.data;
   } catch (error) {
@@ -223,8 +223,13 @@ export const createClaimByTruck = async (
  */
 export const uploadClaimMedia = async (
   claimId: string,
-  mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy',
-  file: File
+  mediaType:
+    | "fir"
+    | "accidentPic"
+    | "inspectionReport"
+    | "lorryReceipt"
+    | "insurancePolicy",
+  file: File,
 ): Promise<ClaimRequest> => {
   try {
     const token = localStorage.getItem("accessToken");
@@ -239,7 +244,7 @@ export const uploadClaimMedia = async (
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
-      }
+      },
     );
     return response.data;
   } catch (error) {
@@ -254,14 +259,14 @@ export const uploadClaimMedia = async (
  */
 export const submitDamageForm = async (
   claimId: string,
-  data: CreateDamageFormDto
+  data: CreateDamageFormDto,
 ): Promise<any> => {
   try {
     const token = localStorage.getItem("accessToken");
     const response = await axios.post(
       `${API_BASE_URL}/claim-requests/${claimId}/damage-form`,
       data,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     return response.data;
   } catch (error) {
@@ -276,7 +281,7 @@ export const submitDamageForm = async (
  * Updates invoice data and regenerates PDF
  */
 export const regenerateInvoice = async (
-  payload: RegenerateInvoicePayload
+  payload: RegenerateInvoicePayload,
 ): Promise<InsuranceForm> => {
   try {
     const token = localStorage.getItem("accessToken");
@@ -293,7 +298,7 @@ export const regenerateInvoice = async (
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     return response.data;
@@ -319,7 +324,7 @@ export const regenerateInvoice = async (
  */
 export const uploadWeighmentSlips = async (
   invoiceId: string,
-  files: File[]
+  files: File[],
 ): Promise<InsuranceForm> => {
   try {
     const token = localStorage.getItem("accessToken");
@@ -340,7 +345,7 @@ export const uploadWeighmentSlips = async (
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
-      }
+      },
     );
 
     return response.data;
@@ -358,7 +363,7 @@ export const uploadWeighmentSlips = async (
  * GET /invoices/:id
  */
 export const getInvoiceById = async (
-  invoiceId: string
+  invoiceId: string,
 ): Promise<InsuranceForm> => {
   try {
     const token = localStorage.getItem("token");
@@ -381,7 +386,7 @@ export const getInvoiceById = async (
  */
 export const updateInvoice = async (
   invoiceId: string,
-  formData: FormData
+  formData: FormData,
 ): Promise<InsuranceForm> => {
   try {
     const token = localStorage.getItem("accessToken");
@@ -397,7 +402,7 @@ export const updateInvoice = async (
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
-      }
+      },
     );
 
     return response.data;

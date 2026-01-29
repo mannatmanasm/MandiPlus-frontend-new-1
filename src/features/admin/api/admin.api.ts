@@ -1,4 +1,9 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import axios, {
+  AxiosError,
+  AxiosInstance,
+  AxiosRequestConfig,
+  AxiosResponse,
+} from "axios";
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -354,7 +359,45 @@ class AdminApi {
     }
   };
 
-  // Regenerate invoice with new data
+  uploadWeighmentSlips = async (
+    invoiceId: string,
+    files: File[],
+  ): Promise<any> => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("weighmentSlips", file);
+      });
+
+      const response = await axios.post(
+        `${API_BASE_URL}/invoices/${invoiceId}/weighment-slips`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      const err = error as AxiosError<any>;
+      const message =
+        err.response?.data?.message || err.message || "Failed to upload files";
+      const errorMessage = Array.isArray(message)
+        ? message.join(", ")
+        : message;
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Regenerate invoice with new data + optional weighment slip file
   public regenerateInvoice = async (
     payload: RegenerateInvoicePayload,
   ): Promise<ApiResponse<any>> => {
