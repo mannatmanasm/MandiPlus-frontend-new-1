@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import ProtectedRoute from "../auth/components/ProtectedRoute";
 import {
   getMyInsuranceForms,
@@ -19,7 +20,7 @@ import {
 } from "../insurance/api";
 import 'cropperjs/dist/cropper.css';
 import Cropper, { ReactCropperElement } from "react-cropper";
-import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, Bars3Icon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/";
 
@@ -31,6 +32,7 @@ const HomePage = () => {
   const router = useRouter();
   const [user, setUser] = useState<User>({});
   const [isMounted, setIsMounted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Invoice states
   const [invoices, setInvoices] = useState<InsuranceForm[]>([]);
@@ -428,7 +430,7 @@ const HomePage = () => {
         )}
 
         {/* HEADER */}
-        <div className="bg-white text-black px-5 py-4 rounded-b-4xl">
+        <div className="bg-white text-black px-5 py-4 rounded-b-4xl relative">
           <div className="flex items-center justify-between">
             <div className="flex flex-col items-center bg-white px-2 py-1 rounded-2xl -ml-2">
               <h2
@@ -445,24 +447,90 @@ const HomePage = () => {
             </div>
 
             <button
-              onClick={handleLogout}
-              className="bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 text-purple-900 px-2 py-1 rounded-2xl text-sm font-medium flex items-center space-x-1 transition-all duration-300 border border-white border-opacity-20"
+              type="button"
+              aria-label="Open menu"
+              onClick={() => setMenuOpen(true)}
+              className="bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 text-purple-900 p-2.5 rounded-2xl transition-all duration-300 ease-out border border-white border-opacity-20 active:scale-95"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-              <span>Logout</span>
+              <Bars3Icon className="w-6 h-6" strokeWidth={2} />
             </button>
+          </div>
+
+          {/* Hamburger menu overlay + panel */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            className={`fixed inset-0 z-50 transition-opacity duration-300 ease-out ${menuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+          >
+            <button
+              type="button"
+              aria-label="Close menu"
+              className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div
+              className={`absolute top-0 right-0 h-full w-full max-w-[280px] bg-white rounded-l-3xl shadow-xl flex flex-col transition-transform duration-300 ease-out ${
+                menuOpen ? "translate-x-0" : "translate-x-full"
+              }`}
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <span className="text-slate-800 font-semibold">Menu</span>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setMenuOpen(false)}
+                  className="p-2 rounded-xl text-slate-600 hover:bg-[#e0d7fc] hover:text-[#4309ac] transition-colors duration-200"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+              <nav className="flex flex-col py-2">
+                <Link
+                  href="/pricing"
+                  onClick={() => setMenuOpen(false)}
+                  className="px-5 py-3.5 text-slate-800 hover:bg-[#e0d7fc]/50 hover:text-[#4309ac] transition-colors duration-200 flex items-center"
+                >
+                  Pricing
+                </Link>
+                <Link
+                  href="/refund-policy"
+                  onClick={() => setMenuOpen(false)}
+                  className="px-5 py-3.5 text-slate-800 hover:bg-[#e0d7fc]/50 hover:text-[#4309ac] transition-colors duration-200 flex items-center"
+                >
+                  Refund Policy
+                </Link>
+                <Link
+                  href="/privacy-policy"
+                  onClick={() => setMenuOpen(false)}
+                  className="px-5 py-3.5 text-slate-800 hover:bg-[#e0d7fc]/50 hover:text-[#4309ac] transition-colors duration-200 flex items-center"
+                >
+                  Privacy Policy
+                </Link>
+                <Link
+                  href="/terms-and-conditions"
+                  onClick={() => setMenuOpen(false)}
+                  className="px-5 py-3.5 text-slate-800 hover:bg-[#e0d7fc]/50 hover:text-[#4309ac] transition-colors duration-200 flex items-center"
+                >
+                  Terms &amp; Conditions
+                </Link>
+                <div className="border-t border-slate-100 my-2" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="px-5 py-3.5 text-left text-slate-800 hover:bg-[#e0d7fc]/50 hover:text-[#4309ac] transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Logout
+                </button>
+              </nav>
+            </div>
           </div>
         </div>
 
