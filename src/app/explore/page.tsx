@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 type LangCode = "en" | "hi" | "kn";
 
 const brochureMap: Record<LangCode, string> = {
-  en: "/brochures/mandi-plus-brochure-english.pdf",
-  hi: "/brochures/mandi-plus-brochure-hindi.pdf",
+  en: "/brochures/Mandi-Plus-brochure-English-compressed.pdf",
+  hi: "/brochures/Mandi-Plus-brochure-Hindi-compressed.pdf",
   kn: "/brochures/mandi-plus-brochure-kannada.pdf",
 };
 
