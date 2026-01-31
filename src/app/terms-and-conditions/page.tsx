@@ -67,10 +67,6 @@ const TermsAndConditionsPage = () => {
             </li>
             <li className="flex items-start gap-2.5">
               <span className="shrink-0 w-1.5 h-1.5 mt-2 rounded-full bg-[#4309ac]" aria-hidden="true" />
-              Supporting documents (FIR, Photos, LR Copy, Videos, Damage Certificate) are required for claim processing.
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="shrink-0 w-1.5 h-1.5 mt-2 rounded-full bg-[#4309ac]" aria-hidden="true" />
               MandiPlus reserves the right to verify all claims before settlement.
             </li>
             <li className="flex items-start gap-2.5">
@@ -78,6 +74,24 @@ const TermsAndConditionsPage = () => {
               False claims may result in policy cancellation and legal action.
             </li>
           </ul>
+
+          <h3 className="text-sm font-semibold text-slate-800 mt-5 mb-2">Instructions to Register Your Claim</h3>
+          <p className="text-slate-600 text-sm mb-4">
+            In the event of loss or damage which may involve a claim under this insurance, immediate notice of such loss or damage should be given to the MandiPlus company&apos;s representative or contact us at 91 xxxxx.
+          </p>
+
+          <h3 className="text-sm font-semibold text-slate-800 mt-5 mb-2">Documentation of Claims</h3>
+          <p className="text-slate-600 text-sm mb-3">
+            To enable claims to be dealt with promptly, the Assured or their Agents are advised to submit all available supporting documents without delay, including when applicable:
+          </p>
+          <ol className="space-y-2 text-slate-600 text-sm list-decimal list-inside">
+            <li>Original policy of insurance.</li>
+            <li>Original or copy shipping invoices, together with shipping specification and/or weight notes.</li>
+            <li>Original Bill of Transport Bilty or Lorry Receipt, Damage Certificate and Letter of Subrogation contract with transporter.</li>
+            <li>Survey Report obtained from the insurer company&apos;s representative at the point of discharge or destination or other documentary evidence to show the extent of the loss or damage.</li>
+            <li>Landing account and weight notes at final destination.</li>
+            <li>Correspondence exchanged with the Carriers and other Parties regarding their liability for the loss or damage.</li>
+          </ol>
         </div>
       </div>
     </div>

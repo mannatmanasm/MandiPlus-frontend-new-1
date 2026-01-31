@@ -33,6 +33,18 @@ const RefundPolicyPage = () => {
             </p>
           </div>
 
+          <div className="border-t border-slate-100 pt-5 mt-5">
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">
+              Dispute Resolution &amp; Communication
+            </h2>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              All claim-related communication must be made via email at{" "}
+              <a href="mailto:support@mandiplus.com" className="text-[#4309ac] hover:underline font-medium">support@mandiplus.com</a>
+              {" "}or by reaching out to our <b> 24/7* Customer Support Number{" "}
+              <a href="tel:+919900186757" className="text-[#4309ac] hover:underline font-medium">+91 99001 86757</a>.</b>
+            </p>
+          </div>
+
           <p className="text-slate-500 text-xs mt-6">
             Last updated: January 2025.
           </p>

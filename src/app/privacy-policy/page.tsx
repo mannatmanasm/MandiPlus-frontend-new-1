@@ -7,7 +7,7 @@ const sections = [
   {
     id: "intro",
     title: null,
-    content: `MandiPlus is committed to protecting the privacy of every individual who visits our website and have taken reasonable steps to protect your Personal Information and/or Sensitive Personal Data or Information.`,
+    content: `MandiPlus (ENP Farms PVT LTD) is committed to protecting the privacy of every individual who visits our website and have taken reasonable steps to protect your Personal Information and/or Sensitive Personal Data or Information.`,
   },
   {
     id: "covers",
