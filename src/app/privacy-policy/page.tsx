@@ -7,7 +7,7 @@ const sections = [
   {
     id: "intro",
     title: null,
-    content: `MandiPlus (referred to as "MandiPlus" or "we") is committed to protecting the privacy of every individual who visits our website and have taken reasonable steps to protect your Personal Information and/or Sensitive Personal Data or Information.`,
+    content: `MandiPlus is committed to protecting the privacy of every individual who visits our website and have taken reasonable steps to protect your Personal Information and/or Sensitive Personal Data or Information.`,
   },
   {
     id: "covers",
@@ -24,7 +24,7 @@ const sections = [
   {
     id: "collection",
     title: "1. Collection of Personal Information",
-    content: `We and our authorized third parties may collect different types of Personal Information and Sensitive Personal Data or Information, as required under laws and regulations and also based on your interest in our insurance products and services and our business relationship with you.`,
+    content: `We and our authorized third parties (Insurer, Claim Representative, Settling Agent) may collect different types of Personal Information and Sensitive Personal Data or Information, as required under laws and regulations and also based on your interest in our insurance products and services and our business relationship with you.`,
     subsections: [
       {
         title: "Personal Information",
@@ -36,11 +36,7 @@ const sections = [
       },
       {
         title: "Financial Information",
-        text: "Details pertaining to your bank account, credit/debit cards, Payment Instruments, Annual Income, Investment/Savings, Income Tax (PAN Card, Form 16, etc.)",
-      },
-      {
-        title: "Health Information",
-        text: "Your Height, Weight, Illness/diseases, Medical Test Reports, etc.",
+        text: "Details pertaining to your bank account, GSTIN, Income Tax (PAN Card, Form 16, etc.)",
       },
       {
         title: "Other Information",
@@ -93,7 +89,7 @@ const sections = [
     title: "6. Privacy Policy for Telematics",
     content: "We and our authorized third parties will collect and process your real-time location based on information provided by your device operating system for the purpose of:",
     list: [
-      "Detecting places you visit and frequent, when and by what means you are travelling",
+      "Detecting Goods carrying vehicles for tracking from the origin to the destination point for the safety purposes",
       "Driving behaviour data analysis",
       "Sending you adequate information regarding the Application",
       "Responding to your comments and problems",
