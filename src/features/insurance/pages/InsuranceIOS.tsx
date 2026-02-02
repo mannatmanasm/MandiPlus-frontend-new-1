@@ -194,10 +194,7 @@ const InsuranceIOS = () => {
     const [error, setError] = useState<string>('');
 
     // Viewport States
-    const [viewportHeight, setViewportHeight] = useState<string>('100vh');
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-    const viewportRef = useRef<HTMLDivElement>(null);
-    const lastHeight = useRef<number>(0);
 
     // Edit States
     const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
@@ -217,41 +214,40 @@ const InsuranceIOS = () => {
     // --- Viewport Logic ---
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        if (!window.visualViewport) return;
 
-        const visualViewport = window.visualViewport;
+        let lastKnownHeight = window.innerHeight;
         
-        const updateViewport = () => {
-            const newHeight = visualViewport.height;
+        const handleResize = () => {
+            const currentHeight = window.innerHeight;
+            const heightDiff = lastKnownHeight - currentHeight;
             
-            if (Math.abs(newHeight - lastHeight.current) > 1) {
-                lastHeight.current = newHeight;
-                setViewportHeight(`${newHeight}px`);
-                const keyboardVisible = newHeight < window.innerHeight * 0.75;
-                setIsKeyboardVisible(keyboardVisible);
+            // If screen got significantly smaller, keyboard is probably open
+            if (heightDiff > 150) {
+                setIsKeyboardVisible(true);
+            } else if (heightDiff < -100) {
+                // Screen got bigger, keyboard closed
+                setIsKeyboardVisible(false);
             }
             
-            // Update container position based on visual viewport
-            if (viewportRef.current) {
-                viewportRef.current.style.height = `${newHeight}px`;
-            }
+            lastKnownHeight = currentHeight;
         };
 
-        const handleFocus = () => {
-            setTimeout(() => {
-                updateViewport();
-            }, 100);
+        const handleFocusIn = () => {
+            setTimeout(handleResize, 300);
         };
 
-        updateViewport();
-        visualViewport.addEventListener('resize', updateViewport);
-        visualViewport.addEventListener('scroll', updateViewport);
-        window.addEventListener('focusin', handleFocus);
+        const handleFocusOut = () => {
+            setTimeout(handleResize, 300);
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('focusin', handleFocusIn);
+        window.addEventListener('focusout', handleFocusOut);
 
         return () => {
-            visualViewport.removeEventListener('resize', updateViewport);
-            visualViewport.removeEventListener('scroll', updateViewport);
-            window.removeEventListener('focusin', handleFocus);
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('focusin', handleFocusIn);
+            window.removeEventListener('focusout', handleFocusOut);
         };
     }, []);
 
@@ -676,10 +672,10 @@ const InsuranceIOS = () => {
 
     return (
         <div
-            ref={viewportRef}
             className="fixed top-0 left-0 right-0 flex flex-col bg-[#efeae2] overflow-hidden"
             style={{
-                height: viewportHeight,
+                height: '100dvh',
+                maxHeight: '-webkit-fill-available',
                 WebkitOverflowScrolling: 'touch',
                 touchAction: 'pan-y',
                 overscrollBehavior: 'none',
@@ -846,13 +842,9 @@ const InsuranceIOS = () => {
             {/* Address Suggestions Floating Above Input */}
             {addressSuggestions.length > 0 && (
                 <div 
-                    className="bg-white border-t border-gray-200 shadow-lg max-h-40 overflow-y-auto"
+                    className="bg-white border-t border-gray-200 shadow-lg max-h-40 overflow-y-auto flex-shrink-0"
                     style={{
-                        position: 'fixed',
-                        bottom: '70px',
-                        left: 0,
-                        right: 0,
-                        zIndex: 999
+                        zIndex: 99
                     }}
                 >
                     <div className="p-2 space-y-1">
@@ -880,18 +872,16 @@ const InsuranceIOS = () => {
             {(!isSelectInput || editingMessageIndex !== null) && (
                 <div
                     data-input-area
-                    className="border-t bg-[#f0f0f0] p-2"
+                    className="border-t bg-[#f0f0f0] p-2 flex-shrink-0"
                     style={{
-                        position: 'fixed',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
                         paddingTop: '8px',
                         paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)',
                         paddingLeft: 'max(env(safe-area-inset-left, 8px), 8px)',
                         paddingRight: 'max(env(safe-area-inset-right, 8px), 8px)',
-                        zIndex: 1000,
-                        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+                        zIndex: 100,
+                        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+                        position: 'sticky',
+                        bottom: 0
                     }}
                 >
                     {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
