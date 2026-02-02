@@ -194,7 +194,10 @@ const InsuranceIOS = () => {
     const [error, setError] = useState<string>('');
 
     // Viewport States
+    const [viewportHeight, setViewportHeight] = useState<string>('100vh');
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const lastHeight = useRef<number>(0);
 
     // Edit States
     const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
@@ -214,42 +217,51 @@ const InsuranceIOS = () => {
     // --- Viewport Logic ---
     useEffect(() => {
         if (typeof window === 'undefined') return;
+        if (!window.visualViewport) return;
 
-        let lastKnownHeight = window.innerHeight;
-        
-        const handleResize = () => {
-            const currentHeight = window.innerHeight;
-            const heightDiff = lastKnownHeight - currentHeight;
-            
-            // If screen got significantly smaller, keyboard is probably open
-            if (heightDiff > 150) {
-                setIsKeyboardVisible(true);
-            } else if (heightDiff < -100) {
-                // Screen got bigger, keyboard closed
-                setIsKeyboardVisible(false);
+        const visualViewport = window.visualViewport;
+        const updateViewport = () => {
+            const newHeight = visualViewport.height;
+            const offsetTop = visualViewport.offsetTop;
+
+            if (Math.abs(newHeight - lastHeight.current) > 1) {
+                lastHeight.current = newHeight;
+                setViewportHeight(`${newHeight}px`);
+                const keyboardVisible = newHeight < window.innerHeight * 0.7;
+                if (keyboardVisible !== isKeyboardVisible) {
+                    setIsKeyboardVisible(keyboardVisible);
+                    if (keyboardVisible) {
+                        setTimeout(() => {
+                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        }, 100);
+                    }
+                }
             }
-            
-            lastKnownHeight = currentHeight;
+            if (viewportRef.current) {
+                viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
+            }
         };
 
-        const handleFocusIn = () => {
-            setTimeout(handleResize, 300);
+        const handleScroll = (e: Event) => {
+            if (visualViewport.pageTop > 0) {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'auto' });
+                return false;
+            }
+            return true;
         };
 
-        const handleFocusOut = () => {
-            setTimeout(handleResize, 300);
-        };
-
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('focusin', handleFocusIn);
-        window.addEventListener('focusout', handleFocusOut);
+        updateViewport();
+        visualViewport.addEventListener('resize', updateViewport);
+        visualViewport.addEventListener('scroll', updateViewport);
+        window.addEventListener('scroll', handleScroll, { passive: false });
 
         return () => {
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('focusin', handleFocusIn);
-            window.removeEventListener('focusout', handleFocusOut);
+            visualViewport.removeEventListener('resize', updateViewport);
+            visualViewport.removeEventListener('scroll', updateViewport);
+            window.removeEventListener('scroll', handleScroll);
         };
-    }, []);
+    }, [isKeyboardVisible]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -672,10 +684,10 @@ const InsuranceIOS = () => {
 
     return (
         <div
+            ref={viewportRef}
             className="fixed top-0 left-0 right-0 flex flex-col bg-[#efeae2] overflow-hidden"
             style={{
-                height: '100dvh',
-                maxHeight: '-webkit-fill-available',
+                height: viewportHeight,
                 WebkitOverflowScrolling: 'touch',
                 touchAction: 'pan-y',
                 overscrollBehavior: 'none',
@@ -781,8 +793,7 @@ const InsuranceIOS = () => {
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehavior: 'contain',
                     touchAction: 'pan-y',
-                    paddingBottom: '80px',
-                    marginBottom: isKeyboardVisible ? '0' : '0'
+                    paddingBottom: isKeyboardVisible ? 'env(safe-area-inset-bottom, 20px)' : '0'
                 }}
                 ref={chatContainerRef}
             >
@@ -841,12 +852,7 @@ const InsuranceIOS = () => {
 
             {/* Address Suggestions Floating Above Input */}
             {addressSuggestions.length > 0 && (
-                <div 
-                    className="bg-white border-t border-gray-200 shadow-lg max-h-40 overflow-y-auto flex-shrink-0"
-                    style={{
-                        zIndex: 99
-                    }}
-                >
+                <div className="bg-white border-t border-gray-200 shadow-lg z-20 max-h-40 overflow-y-auto">
                     <div className="p-2 space-y-1">
                         <p className="px-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                             {language === 'hi' ? 'सुझाव' : 'Suggestions'}
@@ -871,17 +877,11 @@ const InsuranceIOS = () => {
             {/* INPUT AREA */}
             {(!isSelectInput || editingMessageIndex !== null) && (
                 <div
-                    data-input-area
-                    className="border-t bg-[#f0f0f0] p-2 flex-shrink-0"
+                    className="border-t bg-[#f0f0f0] p-2 flex-none"
                     style={{
-                        paddingTop: '8px',
-                        paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)',
-                        paddingLeft: 'max(env(safe-area-inset-left, 8px), 8px)',
-                        paddingRight: 'max(env(safe-area-inset-right, 8px), 8px)',
-                        zIndex: 100,
-                        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-                        position: 'sticky',
-                        bottom: 0
+                        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                        paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
+                        paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)'
                     }}
                 >
                     {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
