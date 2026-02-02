@@ -793,7 +793,7 @@ const InsuranceIOS = () => {
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehavior: 'contain',
                     touchAction: 'pan-y',
-                    paddingBottom: isKeyboardVisible ? 'env(safe-area-inset-bottom, 20px)' : '0'
+                    paddingBottom: isKeyboardVisible ? '100px' : '20px'
                 }}
                 ref={chatContainerRef}
             >
@@ -879,9 +879,14 @@ const InsuranceIOS = () => {
                 <div
                     className="border-t bg-[#f0f0f0] p-2 flex-none"
                     style={{
-                        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                        paddingBottom: isKeyboardVisible 
+                            ? 'calc(env(safe-area-inset-bottom, 0px) + 8px)' 
+                            : 'max(env(safe-area-inset-bottom, 0px), 8px)',
                         paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
-                        paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)'
+                        paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)',
+                        position: 'sticky',
+                        bottom: 0,
+                        zIndex: 30
                     }}
                 >
                     {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
