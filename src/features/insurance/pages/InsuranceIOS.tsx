@@ -220,52 +220,40 @@ const InsuranceIOS = () => {
         if (!window.visualViewport) return;
 
         const visualViewport = window.visualViewport;
+        
         const updateViewport = () => {
             const newHeight = visualViewport.height;
-            const offsetTop = visualViewport.offsetTop;
-
+            
             if (Math.abs(newHeight - lastHeight.current) > 1) {
                 lastHeight.current = newHeight;
                 setViewportHeight(`${newHeight}px`);
-                const keyboardVisible = newHeight < window.innerHeight * 0.7;
-                if (keyboardVisible !== isKeyboardVisible) {
-                    setIsKeyboardVisible(keyboardVisible);
-                    if (keyboardVisible) {
-                        // Scroll to ensure input is visible
-                        setTimeout(() => {
-                            const inputArea = document.querySelector('[data-input-area]');
-                            if (inputArea) {
-                                inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                            }
-                        }, 150);
-                    }
-                }
+                const keyboardVisible = newHeight < window.innerHeight * 0.75;
+                setIsKeyboardVisible(keyboardVisible);
             }
+            
+            // Update container position based on visual viewport
             if (viewportRef.current) {
-                viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
+                viewportRef.current.style.height = `${newHeight}px`;
             }
         };
 
-        const handleScroll = (e: Event) => {
-            if (visualViewport.pageTop > 0) {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'auto' });
-                return false;
-            }
-            return true;
+        const handleFocus = () => {
+            setTimeout(() => {
+                updateViewport();
+            }, 100);
         };
 
         updateViewport();
         visualViewport.addEventListener('resize', updateViewport);
         visualViewport.addEventListener('scroll', updateViewport);
-        window.addEventListener('scroll', handleScroll, { passive: false });
+        window.addEventListener('focusin', handleFocus);
 
         return () => {
             visualViewport.removeEventListener('resize', updateViewport);
             visualViewport.removeEventListener('scroll', updateViewport);
-            window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('focusin', handleFocus);
         };
-    }, [isKeyboardVisible]);
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -797,7 +785,8 @@ const InsuranceIOS = () => {
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehavior: 'contain',
                     touchAction: 'pan-y',
-                    paddingBottom: '20px'
+                    paddingBottom: '80px',
+                    marginBottom: isKeyboardVisible ? '0' : '0'
                 }}
                 ref={chatContainerRef}
             >
@@ -856,7 +845,16 @@ const InsuranceIOS = () => {
 
             {/* Address Suggestions Floating Above Input */}
             {addressSuggestions.length > 0 && (
-                <div className="bg-white border-t border-gray-200 shadow-lg z-20 max-h-40 overflow-y-auto">
+                <div 
+                    className="bg-white border-t border-gray-200 shadow-lg max-h-40 overflow-y-auto"
+                    style={{
+                        position: 'fixed',
+                        bottom: '70px',
+                        left: 0,
+                        right: 0,
+                        zIndex: 999
+                    }}
+                >
                     <div className="p-2 space-y-1">
                         <p className="px-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                             {language === 'hi' ? 'सुझाव' : 'Suggestions'}
@@ -882,16 +880,18 @@ const InsuranceIOS = () => {
             {(!isSelectInput || editingMessageIndex !== null) && (
                 <div
                     data-input-area
-                    className="border-t bg-[#f0f0f0] p-2 flex-none"
+                    className="border-t bg-[#f0f0f0] p-2"
                     style={{
+                        position: 'fixed',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
                         paddingTop: '8px',
-                        paddingBottom: '8px',
-                        paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
-                        paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)',
-                        marginBottom: 'env(safe-area-inset-bottom, 0px)',
-                        position: 'relative',
-                        zIndex: 30,
-                        flexShrink: 0
+                        paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)',
+                        paddingLeft: 'max(env(safe-area-inset-left, 8px), 8px)',
+                        paddingRight: 'max(env(safe-area-inset-right, 8px), 8px)',
+                        zIndex: 1000,
+                        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
                     }}
                 >
                     {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
