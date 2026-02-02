@@ -237,8 +237,12 @@ const InsuranceIOS = () => {
                     }
                 }
             }
+
             if (viewportRef.current) {
-                viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
+                const keyboardVisibleNow = visualViewport.height < window.innerHeight * 0.7;
+                viewportRef.current.style.transform = keyboardVisibleNow
+                    ? 'translateY(0px)'
+                    : `translateY(${offsetTop}px)`;
             }
         };
 
