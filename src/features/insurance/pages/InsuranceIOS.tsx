@@ -231,9 +231,13 @@ const InsuranceIOS = () => {
                 if (keyboardVisible !== isKeyboardVisible) {
                     setIsKeyboardVisible(keyboardVisible);
                     if (keyboardVisible) {
+                        // Scroll to ensure input is visible
                         setTimeout(() => {
-                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                        }, 100);
+                            const inputArea = document.querySelector('[data-input-area]');
+                            if (inputArea) {
+                                inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            }
+                        }, 150);
                     }
                 }
             }
@@ -793,7 +797,7 @@ const InsuranceIOS = () => {
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehavior: 'contain',
                     touchAction: 'pan-y',
-                    paddingBottom: isKeyboardVisible ? '100px' : '20px'
+                    paddingBottom: '20px'
                 }}
                 ref={chatContainerRef}
             >
@@ -877,16 +881,17 @@ const InsuranceIOS = () => {
             {/* INPUT AREA */}
             {(!isSelectInput || editingMessageIndex !== null) && (
                 <div
+                    data-input-area
                     className="border-t bg-[#f0f0f0] p-2 flex-none"
                     style={{
-                        paddingBottom: isKeyboardVisible 
-                            ? 'calc(env(safe-area-inset-bottom, 0px) + 8px)' 
-                            : 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                        paddingTop: '8px',
+                        paddingBottom: '8px',
                         paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
                         paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)',
-                        position: 'sticky',
-                        bottom: 0,
-                        zIndex: 30
+                        marginBottom: 'env(safe-area-inset-bottom, 0px)',
+                        position: 'relative',
+                        zIndex: 30,
+                        flexShrink: 0
                     }}
                 >
                     {error && <p className="text-red-500 text-xs mb-1 px-2">{error}</p>}
