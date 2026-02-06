@@ -225,7 +225,7 @@ const Insurance = () => {
 
             // 1. Call API
             const response = await createInsuranceForm(submitData);
-            const pdfUrl = `http://localhost:5000${response.data.pdfURL}`;
+            const pdfUrl = `http://localhost:5000${response.pdfURL}`;
 
             // 2. Show success message briefly
             setMessages(prev => [
