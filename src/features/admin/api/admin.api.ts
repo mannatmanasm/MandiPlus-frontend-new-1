@@ -435,6 +435,102 @@ class AdminApi {
     }
   };
 
+  public rejectInvoice = async (
+    invoiceId: string,
+    rejectionReason?: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.patch<ApiResponse<any>>(
+        `/invoices/${invoiceId}/reject`,
+        { rejectionReason },
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to reject invoice",
+        error: error.message,
+      };
+    }
+  };
+
+  // ============================================================
+  // ✅ PAYMENTS (ADMIN)
+  // ============================================================
+
+  public generatePaymentLinkForInvoice = async (
+    invoiceId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.post<ApiResponse<any>>(
+        `/payment/generate-link/${invoiceId}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to generate payment link",
+        error: error.message,
+      };
+    }
+  };
+
+  public getPaymentStatusForInvoice = async (
+    invoiceId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.get<ApiResponse<any>>(
+        `/payment/status/${invoiceId}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to fetch payment status",
+        error: error.message,
+      };
+    }
+  };
+
+  public resendPaymentLinkForInvoice = async (
+    invoiceId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.post<ApiResponse<any>>(
+        `/payment/resend/${invoiceId}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to resend payment link",
+        error: error.message,
+      };
+    }
+  };
+
+  public verifyAndSendPaymentForInvoice = async (
+    invoiceId: string,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await this.client.post<ApiResponse<any>>(
+        `/invoices/${invoiceId}/verify-and-send-payment`,
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message ||
+          "Failed to verify invoice and send payment",
+        error: error.message,
+      };
+    }
+  };
+
   // ============================================================
   // ✅ AGENT COMMISSIONS (ADMIN)
   // ============================================================

@@ -15,6 +15,7 @@ import {
     CloudArrowUpIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { adminButtonClasses, adminChipClasses } from '@/features/admin/utils/adminUi';
 
 export default function ClaimsPage() {
     const [claims, setClaims] = useState<ClaimRequest[]>([]);
@@ -151,14 +152,14 @@ export default function ClaimsPage() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'completed':
-                return 'bg-green-100 text-green-800';
+                return adminChipClasses.success;
             case 'inprogress':
-                return 'bg-blue-100 text-blue-800';
+                return adminChipClasses.pending;
             case 'surveyor_assigned':
-                return 'bg-purple-100 text-purple-800';
+                return 'border-[#4309ac]/20 bg-[#4309ac]/10 text-[#4309ac]';
             case 'pending':
             default:
-                return 'bg-yellow-100 text-yellow-800';
+                return adminChipClasses.pending;
         }
     };
 
@@ -176,7 +177,7 @@ export default function ClaimsPage() {
                 <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
                     <button
                         onClick={() => setShowCreateModal(true)}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:w-auto"
+                        className={adminButtonClasses.primary + ' inline-flex items-center justify-center px-4 py-2 sm:w-auto'}
                     >
                         <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
                         New Claim
@@ -192,7 +193,7 @@ export default function ClaimsPage() {
                     </div>
                     <input
                         type="text"
-                        className="block text-black w-full rounded-md border-gray-300 pl-10 focus:border-green-500 focus:ring-green-500 sm:text-sm py-2 border"
+                        className="block text-black w-full rounded-md border-gray-300 pl-10 focus:border-[#4309ac] focus:ring-[#4309ac] sm:text-sm py-2 border"
                         placeholder="Search by Truck Number..."
                         value={filters.truckNumber}
                         onChange={(e) => setFilters({ ...filters, truckNumber: e.target.value })}
@@ -200,7 +201,7 @@ export default function ClaimsPage() {
                 </div>
                 <div className="w-48">
                     <select
-                        className="block text-black w-full rounded-md border-gray-300 border py-2 px-3 focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                        className="block text-black w-full rounded-md border-gray-300 border py-2 px-3 focus:border-[#4309ac] focus:ring-[#4309ac] sm:text-sm"
                         value={filters.status}
                         onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
                     >

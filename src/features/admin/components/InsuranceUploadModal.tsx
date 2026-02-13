@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { adminApi } from '@/features/admin/api/admin.api';
 import { toast } from 'react-toastify';
 import { Upload, FileText, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { adminButtonClasses } from '@/features/admin/utils/adminUi';
 
 export default function InsuranceUploadModal({
   invoice,
@@ -57,35 +58,35 @@ export default function InsuranceUploadModal({
     }
   };
 
-const handleUpload = async () => {
-  if (!file) {
-    toast.error('Please select a PDF file');
-    return;
-  }
+  const handleUpload = async () => {
+    if (!file) {
+      toast.error('Please select a PDF file');
+      return;
+    }
 
-  if (file.size > 5 * 1024 * 1024) {
-    toast.error('File size must be less than 5MB');
-    return;
-  }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be less than 5MB');
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    // Note: adminApi.uploadInvoiceInsurance returns `response.data` (already unwrapped from axios)
-    const response = await adminApi.uploadInvoiceInsurance(invoice.id, file);
-    toast.success(`Insurance ${isReplace ? 'replaced' : 'uploaded'} successfully`);
-    
-    // Pass updated invoice data (handles both ApiResponse-wrapped and direct invoice payloads)
-    const updatedInvoice = (response as any)?.data ?? response;
-    onSuccess(updatedInvoice);
-    onClose();
-  } catch (err: any) {
-    console.error('Upload error:', err);
-    toast.error(err.response?.data?.message || 'Upload failed. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      // Note: adminApi.uploadInvoiceInsurance returns response.data (already unwrapped from axios)
+      const response = await adminApi.uploadInvoiceInsurance(invoice.id, file);
+      toast.success('Insurance ' + (isReplace ? 'replaced' : 'uploaded') + ' successfully');
+      
+      // Pass updated invoice data (handles both ApiResponse-wrapped and direct invoice payloads)
+      const updatedInvoice = (response as any)?.data ?? response;
+      onSuccess(updatedInvoice);
+      onClose();
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      toast.error(err.response?.data?.message || 'Upload failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -102,12 +103,12 @@ const handleUpload = async () => {
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
             {isReplace ? (
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <RefreshCw className="w-5 h-5 text-orange-600" />
+              <div className="p-2 bg-[#4309ac]/10 rounded-lg">
+                <RefreshCw className="w-5 h-5 text-[#4309ac]" />
               </div>
             ) : (
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Upload className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-[#4309ac]/10 rounded-lg">
+                <Upload className="w-5 h-5 text-[#4309ac]" />
               </div>
             )}
             <div>
@@ -120,7 +121,7 @@ const handleUpload = async () => {
           <button
             onClick={onClose}
             disabled={loading}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className={adminButtonClasses.secondary}
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
@@ -144,13 +145,14 @@ const handleUpload = async () => {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all ${
-              dragActive
-                ? 'border-green-500 bg-green-50'
+            className={
+              'relative border-2 border-dashed rounded-lg p-8 text-center transition-all ' +
+              (dragActive
+                ? 'border-[#4309ac] bg-[#4309ac]/5'
                 : file
-                ? 'border-green-300 bg-green-50'
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
+                  ? 'border-[#4309ac]/40 bg-[#4309ac]/5'
+                  : 'border-gray-300 hover:border-gray-400')
+            }
           >
             <input
               id="file-upload"
@@ -164,8 +166,8 @@ const handleUpload = async () => {
             {file ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-center">
-                  <div className="p-3 bg-green-100 rounded-full">
-                    <FileText className="w-8 h-8 text-green-600" />
+                  <div className="p-3 bg-[#4309ac]/10 rounded-full">
+                    <FileText className="w-8 h-8 text-[#4309ac]" />
                   </div>
                 </div>
                 <div>
@@ -190,7 +192,7 @@ const handleUpload = async () => {
                 <div>
                   <label
                     htmlFor="file-upload"
-                    className="cursor-pointer text-green-600 hover:text-green-700 font-medium"
+                    className="cursor-pointer text-[#4309ac] hover:text-[#4309ac]/80 font-medium"
                   >
                     Click to upload
                   </label>
@@ -207,18 +209,14 @@ const handleUpload = async () => {
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors disabled:opacity-50"
+            className={adminButtonClasses.secondary}
           >
             Cancel
           </button>
           <button
             onClick={handleUpload}
             disabled={loading || !file}
-            className={`px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-              isReplace
-                ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
+            className={adminButtonClasses.primary + ' px-6 flex items-center gap-2'}
           >
             {loading ? (
               <>

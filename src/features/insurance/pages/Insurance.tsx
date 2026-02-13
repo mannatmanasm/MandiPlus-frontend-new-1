@@ -330,12 +330,12 @@ const Insurance = () => {
             // Clean addresses before sending
             const supAddr = sanitizeText(formData.supplierAddress || 'Unknown Address');
             const buyAddr = sanitizeText(formData.buyerAddress || 'Unknown Address');
-            const placeSupply = sanitizeText(formData.supplierAddress || 'State');
+            const placeSupply = sanitizeText(formData.placeOfSupply || 'State');
 
             submitData.append('placeOfSupply', placeSupply);
-            submitData.append('supplierAddress[]', supAddr);
-            submitData.append('billToAddress[]', buyAddr);
-            submitData.append('shipToAddress[]', buyAddr);
+            submitData.append('supplierAddress', JSON.stringify([supAddr]));
+            submitData.append('billToAddress', JSON.stringify([buyAddr]));
+            submitData.append('shipToAddress', JSON.stringify([buyAddr]));
 
             const prodName = sanitizeText(formData.itemName || 'Item');
             submitData.append('productName', prodName);
