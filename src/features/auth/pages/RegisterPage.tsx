@@ -121,10 +121,12 @@ const RegisterPage = () => {
           />
 
           <Input
-            className="bg-gray-100/80 opacity-70"
+            className={`bg-gray-100/80 ${initialMobile ? "opacity-70" : ""}`}
             placeholder="Mobile Number"
+            maxLength={10}
             value={formData.mobileNumber}
-            readOnly
+            onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+            readOnly={!!initialMobile}
           />
 
           <Select
