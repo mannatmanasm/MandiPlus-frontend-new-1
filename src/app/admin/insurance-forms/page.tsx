@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '@/features/admin/context/AdminContext';
 import { formatDate, formatCurrency } from '@/features/admin/utils/format';
@@ -9,7 +9,8 @@ import { toast } from 'react-toastify';
 import 'cropperjs/dist/cropper.css';
 import Cropper, { ReactCropperElement } from "react-cropper";
 import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { FileText, RefreshCw, Upload, Eye, CheckCircle, AlertCircle, Filter, X } from 'lucide-react';
+import { FileText, RefreshCw, Upload, Eye, CheckCircle, AlertCircle, Filter, X, XCircle, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
+
 import InsuranceUploadModal from '@/features/admin/components/InsuranceUploadModal';
 import { uploadWeighmentSlips } from '@/features/insurance/api';
 
@@ -59,7 +60,14 @@ interface Invoice {
     createdAt: string;
     terms?: string;
     isVerified?: boolean;
+    isRejected?: boolean;
+    rejectionReason?: string | null;
     isSelected?: boolean;
+    premiumAmount?: number;
+    paymentStatus?: string;
+    paymentAmount?: number | null;
+    isPaymentRequired?: boolean;
+    paymentLinkUrl?: string | null;
     insurance?: {
         fileUrl: string;
         fileType: string;
@@ -97,8 +105,11 @@ export default function InsuranceFormsPage() {
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [formData, setFormData] = useState<Partial<RegenerateInvoicePayload>>({});
     const [verifyingInvoiceId, setVerifyingInvoiceId] = useState<string | null>(null);
+    const [rejectingInvoiceId, setRejectingInvoiceId] = useState<string | null>(null);
+    const [sendingPaymentInvoiceId, setSendingPaymentInvoiceId] = useState<string | null>(null);
     const [exportType, setExportType] = useState<'all' | 'payment'>('all');
     const [showFilters, setShowFilters] = useState(false);
+    const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
 
     // --- Cropper & File State ---
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,10 +142,20 @@ export default function InsuranceFormsPage() {
             );
 
             if (activeFilters.startDate) {
-                activeFilters.startDate = new Date(activeFilters.startDate as string).toISOString();
+                const parsed = new Date(activeFilters.startDate as string);
+                if (!Number.isNaN(parsed.getTime())) {
+                    activeFilters.startDate = parsed.toISOString();
+                } else {
+                    delete (activeFilters as any).startDate;
+                }
             }
             if (activeFilters.endDate) {
-                activeFilters.endDate = new Date(activeFilters.endDate as string).toISOString();
+                const parsed = new Date(activeFilters.endDate as string);
+                if (!Number.isNaN(parsed.getTime())) {
+                    activeFilters.endDate = parsed.toISOString();
+                } else {
+                    delete (activeFilters as any).endDate;
+                }
             }
 
             console.log("Fetching with filters:", activeFilters);
@@ -262,7 +283,7 @@ export default function InsuranceFormsPage() {
         if (verifyingInvoiceId) return;
 
         const confirmed = window.confirm(
-            "Are you sure you want to verify this invoice? Once verified, it cannot be changed."
+            "Verify invoice and send payment link via WhatsApp? This action cannot be undone."
         );
 
         if (!confirmed) return;
@@ -270,16 +291,16 @@ export default function InsuranceFormsPage() {
         try {
             setVerifyingInvoiceId(invoiceId);
 
-            toast.loading("Verifying invoice...", { toastId: "verify-invoice" });
+            toast.loading("Verifying & sending payment link...", { toastId: "verify-invoice" });
 
-            const res = await adminApi.verifyInvoice(invoiceId);
+            const res = await adminApi.verifyAndSendPaymentForInvoice(invoiceId);
 
             if (!res.success) {
                 throw new Error(res.message || "Verification failed");
             }
 
             toast.update("verify-invoice", {
-                render: "Invoice verified successfully",
+                render: "Invoice verified and payment link sent",
                 type: "success",
                 isLoading: false,
                 autoClose: 2000,
@@ -295,6 +316,43 @@ export default function InsuranceFormsPage() {
             });
         } finally {
             setVerifyingInvoiceId(null);
+        }
+    };
+
+    const handleRejectInvoice = async (inv: Invoice) => {
+        if (rejectingInvoiceId) return;
+        if (inv.isRejected) return;
+
+        const rejectionReason = window.prompt('Reject this invoice? Optional: enter a reason (admin only).', '');
+        const confirmed = window.confirm('Are you sure you want to reject this invoice?');
+        if (!confirmed) return;
+
+        try {
+            setRejectingInvoiceId(inv.id);
+            toast.loading('Rejecting invoice...', { toastId: 'reject-invoice' });
+
+            const res = await adminApi.rejectInvoice(inv.id, rejectionReason || undefined);
+            if (!res.success) {
+                throw new Error(res.message || 'Failed to reject invoice');
+            }
+
+            toast.update('reject-invoice', {
+                render: 'Invoice rejected',
+                type: 'success',
+                isLoading: false,
+                autoClose: 2000,
+            });
+
+            await fetchInvoices();
+        } catch (error: any) {
+            toast.update('reject-invoice', {
+                render: error?.message || 'Failed to reject invoice',
+                type: 'error',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setRejectingInvoiceId(null);
         }
     };
 
@@ -453,6 +511,77 @@ export default function InsuranceFormsPage() {
         setWeightmentSlip(null);
     };
 
+    const getInsuredPersonName = (inv: Invoice) => {
+        const note = (inv.weighmentSlipNote || '').toLowerCase().trim();
+        const isCash = note.includes('cash') || note.includes('nak') || note.includes('nag');
+        return isCash ? (inv.billToName || '') : (inv.supplierName || '');
+    };
+
+    const getPaymentStatusLabelAndClasses = (inv: Invoice) => {
+        const raw = inv.paymentStatus || '';
+        const s = raw.toUpperCase();
+
+        if (s === 'PAID') {
+            return { label: 'PAID', classes: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
+        }
+        if (s === 'FAILED') {
+            return { label: 'FAILED', classes: 'border-rose-200 bg-rose-50 text-rose-700' };
+        }
+        if (s === 'REFUNDED') {
+            return { label: 'REFUNDED', classes: 'border-slate-200 bg-slate-50 text-slate-700' };
+        }
+        if (s === 'PENDING') {
+            return { label: 'PENDING', classes: 'border-amber-200 bg-amber-50 text-amber-700' };
+        }
+        if (s === 'NOT_REQUIRED' || inv.isPaymentRequired === false) {
+            return { label: 'NOT_REQUIRED', classes: 'border-slate-200 bg-slate-50 text-slate-700' };
+        }
+
+        return { label: raw || 'PENDING', classes: 'border-amber-200 bg-amber-50 text-amber-700' };
+    };
+
+    const handleSendPaymentLink = async (inv: Invoice) => {
+        if (sendingPaymentInvoiceId) return;
+
+        if (inv.isRejected) {
+            toast.error('Rejected invoice cannot send payment link');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            'Verify invoice and send payment link via WhatsApp? This action cannot be undone.',
+        );
+        if (!confirmed) return;
+
+        try {
+            setSendingPaymentInvoiceId(inv.id);
+            toast.loading('Generating payment link...', { toastId: 'payment-link' });
+
+            const res = await adminApi.verifyAndSendPaymentForInvoice(inv.id);
+            if (!res.success) {
+                throw new Error(res.message || 'Failed to send payment link');
+            }
+
+            toast.update('payment-link', {
+                render: 'Payment link sent successfully',
+                type: 'success',
+                isLoading: false,
+                autoClose: 2000,
+            });
+
+            await fetchInvoices();
+        } catch (error: any) {
+            toast.update('payment-link', {
+                render: error?.message || 'Failed to send payment link',
+                type: 'error',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setSendingPaymentInvoiceId(null);
+        }
+    };
+
     const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
     const paginatedInvoices = invoices.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
@@ -513,7 +642,7 @@ export default function InsuranceFormsPage() {
                 </div>
             )}
 
-            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+            <div className="w-full max-w-none px-3 sm:px-4 lg:px-6 xl:px-8 2xl:px-10">
                 {/* Header - Responsive */}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
@@ -554,7 +683,6 @@ export default function InsuranceFormsPage() {
                     </button>
                 </div>
 
-                {/* Filter Section - Responsive */}
                 <div className={`bg-white text-black p-3 sm:p-4 rounded-lg shadow mb-4 sm:mb-6 ${showFilters ? 'block' : 'hidden sm:block'}`}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                         <select
@@ -635,136 +763,406 @@ export default function InsuranceFormsPage() {
                             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
                         </div>
                     ) : (
-                        <table className="min-w-full divide-y divide-gray-300">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Buyer</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehicle</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">PDF</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">Verify</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Insurance</th>
-                                </tr>
-                            </thead>
-
-                            <tbody className="divide-y divide-gray-200">
-                                {paginatedInvoices.length === 0 ? (
+                        <div className="relative overflow-x-auto">
+                            <table className="w-full min-w-[1240px] table-auto divide-y divide-gray-200 isolate">
+                                <thead className="bg-slate-50">
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-500">
-                                            {loading ? 'Loading...' : 'No invoices found matching criteria.'}
-                                        </td>
+                                        <th className="sticky left-0 z-40 w-10 bg-slate-50 px-2 py-3 xl:px-2 xl:py-2"></th>
+                                        <th className="sticky left-10 z-40 w-40 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider shadow-[6px_0_0_0_rgba(0,0,0,0.03)]">
+                                            Invoice #
+                                        </th>
+                                        <th className="sticky left-[200px] z-40 w-32 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider shadow-[6px_0_0_0_rgba(0,0,0,0.03)]">
+                                            Date
+                                        </th>
+                                        <th className="sticky left-[328px] z-40 w-44 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider shadow-[6px_0_0_0_rgba(0,0,0,0.03)]">
+                                            Insured Person
+                                        </th>
+                                        <th className="w-44 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                                            Buyer
+                                        </th>
+                                        <th className="w-40 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Product</th>
+                                        <th className="w-32 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Vehicle</th>
+                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">PDF</th>
+                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Verify</th>
+                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Edit</th>
+                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Insurance</th>
+                                        <th className="w-36 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Premium Amount</th>
+                                        <th className="w-32 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Payment Status</th>
+                                        <th className="w-44 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Send Payment Link</th>
                                     </tr>
-                                ) : (
-                                    paginatedInvoices.map((inv) => (
-                                        <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-3 py-4 text-sm font-medium text-gray-900">{inv.invoiceNumber}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{formatDate(inv.invoiceDate)}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.supplierName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.billToName}</td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">
-                                                {Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}
-                                            </td>
-                                            <td className="px-3 py-4 text-sm text-gray-500">{inv.vehicleNumber || '-'}</td>
-                                            <td className="px-3 py-4 text-center">
-                                                {(inv.pdfUrl || inv.pdfURL) ? (
-                                                    <button
-                                                        onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
-                                                        className="text-green-600 hover:bg-green-50 p-1 rounded"
-                                                        title="View Invoice PDF"
-                                                    >
-                                                        📄
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-gray-300 text-xs">Pending</span>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-4 text-center">
-                                                {inv.isVerified ? (
-                                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 border border-green-200 px-2 py-1 rounded">
-                                                        ✓ Verified
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleVerifyInvoice(inv.id)}
-                                                        className="w-8 h-8 text-green-600 hover:bg-green-100 rounded"
-                                                        title="Verify Invoice"
-                                                    >
-                                                        ✓
-                                                    </button>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-4 text-center">
-                                                <button
-                                                    onClick={() => handleEditClick(inv)}
-                                                    className="w-8 h-8 text-blue-600 hover:bg-blue-100 rounded"
-                                                    title="Edit Invoice"
-                                                >
-                                                    ✏️
-                                                </button>
-                                            </td>
-                                            <td className="px-3 py-4">
-                                                <div className="flex flex-col items-center gap-2">
-                                                    {getInsuranceFileUrl(inv) ? (
-                                                        <div className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
-                                                            <CheckCircle className="w-3 h-3" />
-                                                            <span>Uploaded</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-1 rounded-full">
-                                                            <AlertCircle className="w-3 h-3" />
-                                                            <span>Pending</span>
-                                                        </div>
-                                                    )}
+                                </thead>
 
-                                                    <div className="flex items-center gap-2">
-                                                        {getInsuranceFileUrl(inv) && (
-                                                            <button
-                                                                onClick={() => window.open(toFullFileUrl(getInsuranceFileUrl(inv)), '_blank')}
-                                                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors group relative border border-green-200"
-                                                                title="View Insurance"
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedInvoiceForInsurance(inv);
-                                                                setShowInsuranceModal(true);
-                                                            }}
-                                                            className={`p-2 rounded-lg transition-colors group relative border ${getInsuranceFileUrl(inv)
-                                                                ? 'text-orange-600 hover:bg-orange-50 border-orange-200'
-                                                                : 'text-blue-600 hover:bg-blue-50 border-blue-200'
-                                                                }`}
-                                                            title={getInsuranceFileUrl(inv) ? 'Replace Insurance' : 'Upload Insurance'}
-                                                        >
-                                                            {getInsuranceFileUrl(inv) ? (
-                                                                <RefreshCw className="w-4 h-4" />
-                                                            ) : (
-                                                                <Upload className="w-4 h-4" />
-                                                            )}
-                                                        </button>
-                                                    </div>
-
-                                                    {inv.insurance?.uploadedAt && (
-                                                        <span className="text-xs text-gray-500">
-                                                            {new Date(inv.insurance.uploadedAt).toLocaleDateString('en-IN', {
-                                                                day: '2-digit',
-                                                                month: 'short'
-                                                            })}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                <tbody className="divide-y divide-gray-200">
+                                    {paginatedInvoices.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={14} className="px-6 py-12 text-center text-sm text-gray-500">
+                                                {loading ? 'Loading...' : 'No invoices found matching criteria.'}
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                    ) : (
+                                        paginatedInvoices.map((inv) => (
+                                            <Fragment key={inv.id}>
+                                                <tr className={`transition-colors ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'hover:bg-slate-50'}`}>
+                                                    <td className={`sticky left-0 z-30 w-10 bg-white px-2 py-3 xl:px-2 xl:py-2 text-center align-top shadow-[6px_0_0_0_rgba(0,0,0,0.03)] ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setExpandedInvoiceId((prev) => (prev === inv.id ? null : inv.id))
+                                                            }
+                                                            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-colors ${expandedInvoiceId === inv.id
+                                                                ? 'border-[#4309ac]/25 bg-[#4309ac]/10 text-[#4309ac]'
+                                                                : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                                                                }`}
+                                                            title={expandedInvoiceId === inv.id ? 'Collapse' : 'Expand'}
+                                                        >
+                                                            {expandedInvoiceId === inv.id ? (
+                                                                <ChevronDown className="w-4 h-4" />
+                                                            ) : (
+                                                                <ChevronRight className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                    </td>
+                                                    <td className={`sticky left-10 z-30 w-40 bg-white px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] font-semibold text-slate-900 whitespace-nowrap shadow-[6px_0_0_0_rgba(0,0,0,0.03)] align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        {inv.invoiceNumber}
+                                                    </td>
+                                                    <td className={`sticky left-[200px] z-30 w-32 bg-white px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-600 whitespace-nowrap shadow-[6px_0_0_0_rgba(0,0,0,0.03)] ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        {formatDate(inv.createdAt)}
+                                                    </td>
+                                                    <td className={`sticky left-[328px] z-30 w-44 bg-white px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 truncate shadow-[6px_0_0_0_rgba(0,0,0,0.03)] ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        {getInsuredPersonName(inv)}
+                                                    </td>
+                                                    <td className="w-44 bg-white px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 truncate">
+                                                        {inv.billToName}
+                                                    </td>
+                                                    <td className="w-40 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700">
+                                                        {Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}
+                                                    </td>
+                                                    <td className="w-32 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 whitespace-nowrap">{inv.vehicleNumber || '-'}</td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        {(inv.pdfUrl || inv.pdfURL) ? (
+                                                            <button
+                                                                onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
+                                                                className="inline-flex items-center justify-center w-9 h-9 text-[#4309ac] hover:bg-[#4309ac]/10 rounded-lg border border-[#4309ac]/20"
+                                                                title="View Invoice PDF"
+                                                            >
+                                                                <FileText className="w-4 h-4" />
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-300 text-xs">Pending</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        {inv.isRejected ? (
+                                                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-1 rounded">
+                                                                <XCircle className="w-3 h-3" />
+                                                                Rejected
+                                                            </span>
+                                                        ) : inv.isVerified ? (
+                                                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 border border-green-200 px-2 py-1 rounded">
+                                                                ✓ Verified
+                                                            </span>
+                                                        ) : (
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleVerifyInvoice(inv.id)}
+                                                                    className="inline-flex items-center justify-center w-9 h-9 text-emerald-700 hover:bg-emerald-50 rounded-lg border border-emerald-200"
+                                                                    title="Verify Invoice"
+                                                                >
+                                                                    <CheckIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectInvoice(inv)}
+                                                                    className="inline-flex items-center justify-center w-9 h-9 text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200"
+                                                                    title="Reject Invoice"
+                                                                    disabled={rejectingInvoiceId === inv.id}
+                                                                >
+                                                                    <XCircle className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        <button
+                                                            onClick={() => handleEditClick(inv)}
+                                                            className="inline-flex items-center justify-center w-9 h-9 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200"
+                                                            title="Edit Invoice"
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2">
+                                                        <div className="flex flex-col items-center gap-2">
+                                                            {getInsuranceFileUrl(inv) ? (
+                                                                <div className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
+                                                                    <CheckCircle className="w-3 h-3" />
+                                                                    <span>Uploaded</span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-1 rounded-full">
+                                                                    <AlertCircle className="w-3 h-3" />
+                                                                    <span>Pending</span>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="flex items-center gap-2">
+                                                                {getInsuranceFileUrl(inv) && (
+                                                                    <button
+                                                                        onClick={() => window.open(toFullFileUrl(getInsuranceFileUrl(inv)), '_blank')}
+                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg border border-green-200"
+                                                                        title="View Insurance"
+                                                                    >
+                                                                        <Eye className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedInvoiceForInsurance(inv);
+                                                                        setShowInsuranceModal(true);
+                                                                    }}
+                                                                    className={`p-2 rounded-lg transition-colors group relative border ${getInsuranceFileUrl(inv)
+                                                                        ? 'text-orange-600 hover:bg-orange-50 border-orange-200'
+                                                                        : 'text-blue-600 hover:bg-blue-50 border-blue-200'
+                                                                        }`}
+                                                                    title={getInsuranceFileUrl(inv) ? 'Replace Insurance' : 'Upload Insurance'}
+                                                                >
+                                                                    {getInsuranceFileUrl(inv) ? (
+                                                                        <RefreshCw className="w-4 h-4" />
+                                                                    ) : (
+                                                                        <Upload className="w-4 h-4" />
+                                                                    )}
+                                                                </button>
+                                                            </div>
+
+                                                            {inv.insurance?.uploadedAt && (
+                                                                <span className="text-xs text-gray-500">
+                                                                    {new Date(inv.insurance.uploadedAt).toLocaleDateString('en-IN', {
+                                                                        day: '2-digit',
+                                                                        month: 'short'
+                                                                    })}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        <span className="text-sm xl:text-[13px] font-semibold text-slate-900">
+                                                            {typeof inv.premiumAmount === 'number'
+                                                                ? formatCurrency(inv.premiumAmount)
+                                                                : formatCurrency((Number(inv.amount) || 0) * 0.002)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        {(() => {
+                                                            const s = getPaymentStatusLabelAndClasses(inv);
+                                                            return (
+                                                                <span className={`inline-flex items-center justify-center rounded-full border px-2.5 py-1 text-xs font-semibold ${s.classes}`}>
+                                                                    {s.label}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                        <button
+                                                            onClick={() => handleSendPaymentLink(inv)}
+                                                            disabled={sendingPaymentInvoiceId === inv.id || !!inv.isRejected}
+                                                            className="inline-flex items-center justify-center rounded-lg bg-[#4309ac] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4309ac]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title="Generate payment link"
+                                                        >
+                                                            {sendingPaymentInvoiceId === inv.id ? 'Sending...' : 'Send WhatsApp Link'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+
+                                                {expandedInvoiceId === inv.id && (
+                                                    <tr className="bg-slate-50/60">
+                                                        <td colSpan={14} className="px-4 pb-4">
+                                                            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                                <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-sm font-semibold text-slate-900">Details</p>
+                                                                        <p className="mt-0.5 text-xs text-slate-500 truncate">
+                                                                            {inv.invoiceNumber} • {inv.vehicleNumber || '-'}
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${inv.isVerified
+                                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                            : 'border-slate-200 bg-white text-slate-700'
+                                                                            }`}>
+                                                                            {inv.isVerified ? (
+                                                                                <CheckIcon className="h-3.5 w-3.5" />
+                                                                            ) : (
+                                                                                <AlertCircle className="h-3.5 w-3.5" />
+                                                                            )}
+                                                                            {inv.isVerified ? 'Verified' : 'Not Verified'}
+                                                                        </span>
+                                                                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${getInsuranceFileUrl(inv)
+                                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                                                                            }`}>
+                                                                            {getInsuranceFileUrl(inv) ? (
+                                                                                <CheckCircle className="h-3.5 w-3.5" />
+                                                                            ) : (
+                                                                                <AlertCircle className="h-3.5 w-3.5" />
+                                                                            )}
+                                                                            {getInsuranceFileUrl(inv) ? 'Insurance Uploaded' : 'Insurance Pending'}
+                                                                        </span>
+                                                                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${(inv.pdfUrl || inv.pdfURL)
+                                                                            ? 'border-[#4309ac]/20 bg-[#4309ac]/10 text-[#4309ac]'
+                                                                            : 'border-slate-200 bg-slate-50 text-slate-700'
+                                                                            }`}>
+                                                                            <FileText className="h-3.5 w-3.5" />
+                                                                            {(inv.pdfUrl || inv.pdfURL) ? 'PDF Ready' : 'PDF Pending'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="p-4">
+                                                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 items-stretch">
+                                                                        <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
+                                                                            <p className="text-sm font-semibold text-slate-900">Applicant Details</p>
+                                                                            <dl className="mt-3 space-y-2">
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Insured Person</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{getInsuredPersonName(inv) || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Buyer</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.billToName || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Place of Supply</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.placeOfSupply || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Supplier Address</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">
+                                                                                        {Array.isArray(inv.supplierAddress) && inv.supplierAddress.length > 0
+                                                                                            ? inv.supplierAddress.join(', ')
+                                                                                            : '-'}
+                                                                                    </dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Bill To Address</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">
+                                                                                        {Array.isArray(inv.billToAddress) && inv.billToAddress.length > 0
+                                                                                            ? inv.billToAddress.join(', ')
+                                                                                            : '-'}
+                                                                                    </dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Ship To Name</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.shipToName || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Ship To Address</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">
+                                                                                        {Array.isArray(inv.shipToAddress) && inv.shipToAddress.length > 0
+                                                                                            ? inv.shipToAddress.join(', ')
+                                                                                            : '-'}
+                                                                                    </dd>
+                                                                                </div>
+                                                                            </dl>
+                                                                        </div>
+
+                                                                        <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
+                                                                            <p className="text-sm font-semibold text-slate-900">Invoice Details</p>
+                                                                            <dl className="mt-3 space-y-2">
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Product</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">
+                                                                                        {Array.isArray(inv.productName) && inv.productName.length > 0
+                                                                                            ? inv.productName.join(', ')
+                                                                                            : '-'}
+                                                                                    </dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">HSN</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.hsnCode || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Quantity</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.quantity ?? '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Rate</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">
+                                                                                        {typeof inv.rate === 'number' ? formatCurrency(inv.rate) : '-'}
+                                                                                    </dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Amount</dt>
+                                                                                    <dd className="text-sm font-semibold text-slate-900 text-right break-words">{formatCurrency(inv.amount)}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Vehicle No</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.vehicleNumber || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Truck No</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.truckNumber || '-'}</dd>
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <dt className="text-xs font-semibold text-slate-500">Created At</dt>
+                                                                                    <dd className="text-sm text-slate-900 text-right break-words">{inv.createdAt ? formatDate(inv.createdAt) : '-'}</dd>
+                                                                                </div>
+                                                                            </dl>
+                                                                        </div>
+
+                                                                        <div className="h-full rounded-2xl border border-slate-200 bg-white p-4">
+                                                                            <p className="text-sm font-semibold text-slate-900">Documents</p>
+                                                                            <div className="mt-3 space-y-3">
+                                                                                <div className="flex items-center justify-between gap-3">
+                                                                                    <p className="text-xs font-semibold text-slate-500">Invoice PDF</p>
+                                                                                    {(inv.pdfUrl || inv.pdfURL) ? (
+                                                                                        <button
+                                                                                            onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
+                                                                                            className="inline-flex items-center gap-2 rounded-lg border border-[#4309ac]/20 px-3 py-2 text-sm font-semibold text-[#4309ac] hover:bg-[#4309ac]/10"
+                                                                                        >
+                                                                                            <FileText className="w-4 h-4" />
+                                                                                            View
+                                                                                        </button>
+                                                                                    ) : (
+                                                                                        <span className="text-sm text-slate-600">Pending</span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="flex items-center justify-between gap-3">
+                                                                                    <p className="text-xs font-semibold text-slate-500">Insurance</p>
+                                                                                    {getInsuranceFileUrl(inv) ? (
+                                                                                        <button
+                                                                                            onClick={() => window.open(toFullFileUrl(getInsuranceFileUrl(inv)), '_blank')}
+                                                                                            className="inline-flex items-center gap-2 rounded-lg border border-[#4309ac]/20 px-3 py-2 text-sm font-semibold text-[#4309ac] hover:bg-[#4309ac]/10"
+                                                                                        >
+                                                                                            <Eye className="w-4 h-4" />
+                                                                                            View
+                                                                                        </button>
+                                                                                    ) : (
+                                                                                        <span className="text-sm text-slate-600">Pending</span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <p className="text-xs font-semibold text-slate-500">Weighment Slip Note</p>
+                                                                                    <p className="text-sm text-slate-900 text-right break-words">{inv.weighmentSlipNote || '-'}</p>
+                                                                                </div>
+                                                                                <div className="pt-2 border-t border-slate-100">
+                                                                                    <p className="text-xs font-semibold text-slate-500">Terms</p>
+                                                                                    <p className="text-sm text-slate-900 mt-1 break-words">{inv.terms || '-'}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </Fragment>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
 
@@ -789,7 +1187,7 @@ export default function InsuranceFormsPage() {
                                                 {inv.invoiceNumber}
                                             </h3>
                                             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                                                {formatDate(inv.invoiceDate)}
+                                                {formatDate(inv.createdAt)}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-1.5 sm:gap-2 ml-2">
@@ -817,8 +1215,8 @@ export default function InsuranceFormsPage() {
                                 <div className="px-3 sm:px-4 py-3 space-y-2.5 sm:space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                         <div>
-                                            <p className="text-xs text-gray-500 mb-0.5">Supplier</p>
-                                            <p className="text-sm font-medium text-gray-900 truncate">{inv.supplierName}</p>
+                                            <p className="text-xs text-gray-500 mb-0.5">Insured Person</p>
+                                            <p className="text-sm font-medium text-gray-900 truncate">{getInsuredPersonName(inv)}</p>
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 mb-0.5">Buyer</p>
@@ -838,19 +1236,35 @@ export default function InsuranceFormsPage() {
 
                                     {/* Verification Status */}
                                     <div className="pt-2 border-t border-gray-100">
-                                        {inv.isVerified ? (
+                                        {inv.isRejected ? (
+                                            <div className="flex items-center gap-2 text-red-700">
+                                                <XCircle className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Rejected</span>
+                                            </div>
+                                        ) : inv.isVerified ? (
                                             <div className="flex items-center gap-2 text-green-700">
                                                 <CheckCircle className="w-4 h-4" />
                                                 <span className="text-sm font-medium">Verified</span>
                                             </div>
                                         ) : (
-                                            <button
-                                                onClick={() => handleVerifyInvoice(inv.id)}
-                                                className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <CheckCircle className="w-4 h-4" />
-                                                Verify Invoice
-                                            </button>
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <button
+                                                    onClick={() => handleVerifyInvoice(inv.id)}
+                                                    className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    Verify Invoice
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRejectInvoice(inv)}
+                                                    disabled={rejectingInvoiceId === inv.id}
+                                                    className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                                    title="Reject Invoice"
+                                                >
+                                                    <XCircle className="w-4 h-4" />
+                                                    Reject
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
 
@@ -966,7 +1380,7 @@ export default function InsuranceFormsPage() {
                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                                 <div className="flex flex-col gap-3">
                                     {weightmentSlip ? (
-                                        <div className="text-green-700 text-sm bg-green-50 p-2 rounded">{weightmentSlip.name}</div>
+                                        <div className="text-green-700 text-sm bg-green-50 p-2 rounded">{weightmentSlip?.name ?? ''}</div>
                                     ) : (
                                         <div className="text-gray-500 text-sm text-center">No new slip selected</div>
                                     )}
@@ -981,7 +1395,7 @@ export default function InsuranceFormsPage() {
                             </div>
 
                             <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
-                                Invoice: <span className="font-semibold">{editingInvoice.invoiceNumber}</span>
+                                Invoice: <span className="font-semibold">{editingInvoice?.invoiceNumber ?? ''}</span>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1011,7 +1425,7 @@ export default function InsuranceFormsPage() {
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-800 mb-1">Supplier Address</label>
                                     <textarea
-                                        value={Array.isArray(formData.supplierAddress) ? formData.supplierAddress[0] : formData.supplierAddress}
+                                        value={Array.isArray(formData.supplierAddress) ? (formData.supplierAddress[0] ?? '') : (formData.supplierAddress ?? '')}
                                         onChange={(e) => setFormData({ ...formData, supplierAddress: [e.target.value] })}
                                         className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 bg-white text-sm"
                                         placeholder="Enter supplier address"
@@ -1033,7 +1447,7 @@ export default function InsuranceFormsPage() {
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-800 mb-1">Bill To Address</label>
                                     <textarea
-                                        value={Array.isArray(formData.billToAddress) ? formData.billToAddress[0] : formData.billToAddress}
+                                        value={Array.isArray(formData.billToAddress) ? (formData.billToAddress[0] ?? '') : (formData.billToAddress ?? '')}
                                         onChange={(e) => setFormData({ ...formData, billToAddress: [e.target.value] })}
                                         className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 bg-white text-sm"
                                         placeholder="Enter buyer address"
@@ -1066,7 +1480,7 @@ export default function InsuranceFormsPage() {
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-800 mb-1">Ship To Address</label>
                                     <textarea
-                                        value={Array.isArray(formData.shipToAddress) ? formData.shipToAddress[0] : formData.shipToAddress}
+                                        value={(Array.isArray(formData.shipToAddress) ? formData.shipToAddress[0] : formData.shipToAddress) ?? ''}
                                         onChange={(e) => setFormData({ ...formData, shipToAddress: [e.target.value] })}
                                         className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4309ac] focus:border-[#4309ac] focus:outline-none text-slate-800 bg-white text-sm"
                                         placeholder="Shipping address"
