@@ -237,8 +237,12 @@ const InsuranceIOS = () => {
                     }
                 }
             }
+
             if (viewportRef.current) {
-                viewportRef.current.style.transform = `translateY(${offsetTop}px)`;
+                const keyboardVisibleNow = visualViewport.height < window.innerHeight * 0.7;
+                viewportRef.current.style.transform = keyboardVisibleNow
+                    ? 'translateY(0px)'
+                    : `translateY(${offsetTop}px)`;
             }
         };
 
@@ -944,8 +948,8 @@ const InsuranceIOS = () => {
                                     step={currentQuestion.step}
                                     value={inputValue}
                                     onChange={e => setInputValue(e.target.value)}
-                                    className={`w-full border rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-green-500 text-sm text-black ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
-                                    style={{ WebkitAppearance: 'none' }}
+                                    className={`w-full border rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-green-500 text-black text-[16px] ${editingMessageIndex !== null ? 'border-[#128C7E] border-2' : ''}`}
+                                    style={{ WebkitAppearance: 'none', fontSize: '16px' }}
                                     inputMode={currentQuestion.type === 'number' ? 'decimal' : 'text'}
                                     placeholder={
                                         editingMessageIndex !== null
@@ -960,7 +964,7 @@ const InsuranceIOS = () => {
                             <button
                                 type="submit"
                                 disabled={isSubmitting || (!inputValue.trim() && !isSelectInput)}
-                                className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 flex items-center justify-center ${editingMessageIndex !== null
+                                className={`p-2.5 rounded-full text-white shadow-sm transition-colors min-w-10 flex items-center justify-center flex-shrink-0 ${editingMessageIndex !== null
                                     ? 'bg-[#128C7E] hover:bg-[#0e6b5e]'
                                     : 'bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50'
                                     }`}
