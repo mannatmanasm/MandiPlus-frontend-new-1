@@ -15,11 +15,14 @@ export default function AdminHeader() {
     return (
         <header className="bg-white shadow">
             <div className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-                <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+                <h1 className="text-2xl font-extrabold tracking-tight">
+                    <span className="text-slate-900">Admin</span>{' '}
+                    <span className="text-[#4309ac]">Panel</span>
+                </h1>
                 <div className="flex items-center">
                     <button
                         type="button"
-                        className="rounded-full bg-white p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        className="rounded-full bg-white p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4309ac] focus:ring-offset-2"
                     >
                         <span className="sr-only">View notifications</span>
                         <BellIcon className="h-6 w-6" aria-hidden="true" />
@@ -28,10 +31,10 @@ export default function AdminHeader() {
                     {/* Profile dropdown */}
                     <Menu as="div" className="relative ml-3">
                         <div>
-                            <Menu.Button className="flex rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                            <Menu.Button className="flex rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#4309ac] focus:ring-offset-2">
                                 <span className="sr-only">Open user menu</span>
-                                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                                    <span className="text-green-600 font-medium">A</span>
+                                <div className="h-8 w-8 rounded-full bg-[#4309ac]/10 flex items-center justify-center">
+                                    <span className="text-[#4309ac] font-semibold">A</span>
                                 </div>
                             </Menu.Button>
                         </div>

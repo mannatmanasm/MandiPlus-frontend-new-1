@@ -214,9 +214,56 @@ const Insurance = () => {
 
         try {
             const submitData = new FormData();
-            (Object.keys(formData) as Array<keyof typeof formData>).forEach(key => {
-                submitData.append(key, String(formData[key]));
-            });
+            const userData = localStorage.getItem('user');
+            if (userData) {
+                try {
+                    const user = JSON.parse(userData);
+                    if (user.id) submitData.append('userId', user.id);
+                } catch (e) { console.error(e); }
+            }
+
+            submitData.append('invoiceDate', new Date().toISOString());
+
+            // Clean addresses before sending
+            const supAddr = sanitizeText(formData.supplierAddress || 'Unknown Address');
+            const buyAddr = sanitizeText(formData.buyerAddress || 'Unknown Address');
+            const placeSupply = sanitizeText(formData.placeOfSupply || 'State');
+
+            submitData.append('placeOfSupply', placeSupply);
+            submitData.append('supplierAddress', JSON.stringify([supAddr]));
+            submitData.append('billToAddress', JSON.stringify([buyAddr]));
+            submitData.append('shipToAddress', JSON.stringify([buyAddr]));
+
+            const prodName = sanitizeText(formData.itemName || 'Item');
+            submitData.append('productName', prodName);
+
+            const supName = sanitizeText(formData.supplierName || 'Unknown Supplier');
+            submitData.append('supplierName', supName);
+
+            const buyName = sanitizeText(formData.buyerName || 'Unknown Buyer');
+            submitData.append('billToName', buyName);
+            submitData.append('shipToName', buyName);
+
+            const qty = formData.quantity ? Number(formData.quantity) : 0;
+            const rate = formData.rate ? Number(formData.rate) : 0;
+            const amount = qty * rate;
+
+            submitData.append('quantity', String(qty));
+            submitData.append('rate', String(rate));
+            submitData.append('amount', String(amount));
+
+            if (formData.vehicleNumber) {
+                const vehicle = sanitizeText(formData.vehicleNumber);
+                submitData.append('vehicleNumber', vehicle);
+                submitData.append('truckNumber', vehicle);
+            }
+
+            const owner = sanitizeText(formData.ownerName || 'Unknown Owner');
+            submitData.append('ownerName', owner);
+            submitData.append('invoiceType', formData.invoiceType || 'BUYER_INVOICE');
+
+            if (formData.hsn) submitData.append('hsnCode', formData.hsn);
+            if (formData.notes) submitData.append('weighmentSlipNote', sanitizeText(formData.notes));
 
             const finalFile = fileArgument || weightmentSlip;
             if (finalFile) {

@@ -355,12 +355,12 @@ const InsuranceIOS = () => {
             }
 
             submitData.append('invoiceDate', new Date().toISOString());
-            submitData.append('placeOfSupply', formData.supplierAddress || 'State');
+            submitData.append('placeOfSupply', formData.placeOfSupply || 'State');
             const supAddr = formData.supplierAddress || 'Unknown Address';
-            submitData.append('supplierAddress[]', supAddr);
+            submitData.append('supplierAddress', JSON.stringify([supAddr]));
             const buyAddr = formData.buyerAddress || 'Unknown Address';
-            submitData.append('billToAddress[]', buyAddr);
-            submitData.append('shipToAddress[]', buyAddr);
+            submitData.append('billToAddress', JSON.stringify([buyAddr]));
+            submitData.append('shipToAddress', JSON.stringify([buyAddr]));
 
             const prodName = formData.itemName || 'Item';
             submitData.append('productName', prodName);

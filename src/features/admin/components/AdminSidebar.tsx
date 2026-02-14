@@ -90,19 +90,23 @@ export default function AdminSidebar() {
                                         </div>
                                     </Transition.Child>
                                     <div className="shrink-0 items-center px-4">
-                                        <h1 className="text-xl font-bold text-green-600">MandiPlus</h1>
+                                        <h1 className="text-xl font-extrabold tracking-tight">
+                                            <span className="text-slate-900">Mandi</span>
+                                            <span className="text-[#4309ac]">Plus</span>
+                                        </h1>
                                     </div>
                                     <div className="mt-5 h-0 flex-1 overflow-y-auto">
                                         <nav className="space-y-1 px-2">
                                             {navigation.map((item) => {
                                                 const isActive = pathname === item.href;
+
                                                 return (
                                                     <Link
                                                         key={item.name}
                                                         href={item.href}
                                                         className={classNames(
                                                             isActive
-                                                                ? 'bg-green-50 text-green-600'
+                                                                ? 'bg-[#4309ac]/10 text-[#4309ac]'
                                                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                                                             'group flex items-center rounded-md px-2 py-2 text-base font-medium'
                                                         )}
@@ -110,12 +114,13 @@ export default function AdminSidebar() {
                                                     >
                                                         <item.icon
                                                             className={classNames(
-                                                                isActive ? 'text-green-500' : 'text-gray-400 group-hover:text-gray-500',
+                                                                isActive ? 'text-[#4309ac]' : 'text-gray-400 group-hover:text-gray-500',
                                                                 'mr-4 h-6 w-6 shrink-0'
                                                             )}
                                                             aria-hidden="true"
                                                         />
                                                         {item.name}
+
                                                     </Link>
                                                 );
                                             })}
@@ -135,7 +140,10 @@ export default function AdminSidebar() {
                     <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
                         <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
                             <div className="flex shrink-0 items-center px-4">
-                                <h1 className="text-xl font-bold text-green-600">MandiPlus</h1>
+                                <h1 className="text-xl font-extrabold tracking-tight">
+                                    <span className="text-slate-900">Mandi</span>
+                                    <span className="text-[#4309ac]">Plus</span>
+                                </h1>
                             </div>
                             <nav className="mt-5 flex-1 space-y-1 bg-white px-2">
                                 {navigation.map((item) => {
@@ -146,19 +154,20 @@ export default function AdminSidebar() {
                                             href={item.href}
                                             className={classNames(
                                                 isActive
-                                                    ? 'bg-green-50 text-green-600'
+                                                    ? 'bg-[#4309ac]/10 text-[#4309ac]'
                                                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                                                 'group flex items-center rounded-md px-2 py-2 text-sm font-medium'
                                             )}
                                         >
                                             <item.icon
                                                 className={classNames(
-                                                    isActive ? 'text-green-500' : 'text-gray-400 group-hover:text-gray-500',
+                                                    isActive ? 'text-[#4309ac]' : 'text-gray-400 group-hover:text-gray-500',
                                                     'mr-3 h-6 w-6 shrink-0'
                                                 )}
                                                 aria-hidden="true"
                                             />
                                             {item.name}
+
                                         </Link>
                                     );
                                 })}
@@ -171,13 +180,14 @@ export default function AdminSidebar() {
                             >
                                 <div className="flex items-center">
                                     <div>
-                                        <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                                            <span className="text-green-600 font-medium">A</span>
+                                        <div className="h-8 w-8 rounded-full bg-[#4309ac]/10 flex items-center justify-center">
+                                            <span className="text-[#4309ac] font-semibold">A</span>
                                         </div>
                                     </div>
                                     <div className="ml-3 text-left">
                                         <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
                                             Admin
+
                                         </p>
                                         <p className="text-xs font-medium text-gray-500 group-hover:text-gray-700">
                                             Sign out
@@ -194,12 +204,14 @@ export default function AdminSidebar() {
                     <div className="sticky top-0 z-10 bg-white pl-1 pt-1 sm:pl-3 sm:pt-3 lg:hidden">
                         <button
                             type="button"
-                            className="-ml-0.5 -mt-0.5 inline-flex h-12 w-12 items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500"
+                            className="-ml-0.5 -mt-0.5 inline-flex h-12 w-12 items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#4309ac]"
                             onClick={() => setSidebarOpen(true)}
                         >
                             <span className="sr-only">Open sidebar</span>
                             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+
                         </button>
+
                     </div>
                 </div>
             </div>
