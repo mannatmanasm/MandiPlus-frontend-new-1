@@ -780,7 +780,7 @@ export default function InsuranceFormsPage() {
                         </div>
                     ) : (
                         <div className="relative overflow-x-auto overflow-y-hidden">
-                            <table className="w-full min-w-[1240px] table-auto divide-y divide-gray-200 border-separate border-spacing-0">
+                            <table className="w-full min-w-[1700px] table-auto divide-y divide-gray-200 border-separate border-spacing-0">
                                 <thead className="bg-slate-50">
                                     <tr>
                                         <th className="sticky left-0 z-[999] w-10 bg-slate-50 bg-clip-padding px-2 py-3 xl:px-2 xl:py-2 relative overflow-hidden"></th>
@@ -790,22 +790,22 @@ export default function InsuranceFormsPage() {
                                         <th className="sticky left-[200px] z-[999] w-32 bg-slate-50 bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider relative overflow-hidden">
                                             Date
                                         </th>
-                                        <th className="sticky left-[328px] z-[999] w-44 bg-slate-50 bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider relative overflow-hidden">
+                                        <th className="sticky left-[328px] z-[999] w-44 bg-slate-50 bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider relative overflow-hidden shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
                                             Insured Person
                                         </th>
-                                        <th className="w-44 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                                        <th className="w-44 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider pl-6">
                                             Other Party
                                         </th>
 
-                                        <th className="w-40 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Product</th>
-                                        <th className="w-32 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Vehicle</th>
-                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">PDF</th>
-                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Verify</th>
-                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Edit</th>
-                                        <th className="px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Insurance</th>
-                                        <th className="w-36 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Premium Amount</th>
-                                        <th className="w-32 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Payment Status</th>
-                                        <th className="w-44 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Send Payment Link</th>
+                                        <th className="w-40 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider pl-4">Product</th>
+                                        <th className="w-32 bg-slate-50 px-3 py-3 xl:px-2 xl:py-2 text-left text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider pl-4">Vehicle</th>
+                                        <th className="bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">PDF</th>
+                                        <th className="bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Verify</th>
+                                        <th className="bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Edit</th>
+                                        <th className="bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Insurance</th>
+                                        <th className="w-36 bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Premium Amount</th>
+                                        <th className="w-32 bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Payment Status</th>
+                                        <th className="w-44 bg-slate-50 px-2 py-3 xl:py-2 text-center text-xs xl:text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Send Payment Link</th>
                                     </tr>
                                 </thead>
 
@@ -839,24 +839,26 @@ export default function InsuranceFormsPage() {
                                                             )}
                                                         </button>
                                                     </td>
-                                                    <td className={`sticky left-10 z-[900] w-40 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] font-semibold text-slate-900 whitespace-nowrap align-top relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
-                                                        {inv.invoiceNumber}
+                                                    <td className={`sticky left-10 z-[900] w-40 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] font-semibold text-slate-900 align-top relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        <div className="break-words leading-snug">{inv.invoiceNumber}</div>
                                                     </td>
-                                                    <td className={`sticky left-[200px] z-[900] w-32 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-600 whitespace-nowrap relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
-                                                        {formatDate(inv.createdAt)}
+                                                    <td className={`sticky left-[200px] z-[900] w-32 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-600 align-top relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        <div className="break-words leading-snug">{formatDate(inv.createdAt)}</div>
                                                     </td>
-                                                    <td className={`sticky left-[328px] z-[900] w-44 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 truncate relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
-                                                        {getInsuredPersonName(inv)}
+                                                    <td className={`sticky left-[328px] z-[900] w-44 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 align-top relative overflow-hidden shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
+                                                        <div className="break-words leading-snug">{getInsuredPersonName(inv)}</div>
                                                     </td>
-                                                    <td className="w-44 bg-white px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 truncate">
-                                                        {getOtherPartyName(inv)}
+                                                    <td className={`w-44 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 align-top pl-6 ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
+                                                        <div className="break-words leading-snug">{getOtherPartyName(inv)}</div>
                                                     </td>
 
-                                                    <td className="w-40 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700">
-                                                        {Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}
+                                                    <td className={`w-40 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 align-top pl-4 ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
+                                                        <div className="break-words leading-snug">{Array.isArray(inv.productName) ? inv.productName[0] : inv.productName}</div>
                                                     </td>
-                                                    <td className="w-32 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 whitespace-nowrap">{inv.vehicleNumber || '-'}</td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`w-32 px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 align-top pl-4 ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
+                                                        <div className="break-words leading-snug">{inv.vehicleNumber || '-'}</div>
+                                                    </td>
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         {(inv.pdfUrl || inv.pdfURL) ? (
                                                             <button
                                                                 onClick={() => handleViewPdf(inv.pdfUrl || inv.pdfURL)}
@@ -869,7 +871,7 @@ export default function InsuranceFormsPage() {
                                                             <span className="text-gray-300 text-xs">Pending</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         {inv.isRejected ? (
                                                             <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-1 rounded">
                                                                 <XCircle className="w-3 h-3" />
@@ -899,7 +901,7 @@ export default function InsuranceFormsPage() {
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         <button
                                                             onClick={() => handleEditClick(inv)}
                                                             className="inline-flex items-center justify-center w-9 h-9 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200"
@@ -908,7 +910,7 @@ export default function InsuranceFormsPage() {
                                                             <Pencil className="w-4 h-4" />
                                                         </button>
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2">
+                                                    <td className={`px-2 py-3 xl:py-2 align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         <div className="flex flex-col items-center gap-2">
                                                             {getInsuranceFileUrl(inv) ? (
                                                                 <div className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
@@ -962,14 +964,14 @@ export default function InsuranceFormsPage() {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         <span className="text-sm xl:text-[13px] font-semibold text-slate-900">
                                                             {typeof inv.premiumAmount === 'number'
                                                                 ? formatCurrency(inv.premiumAmount)
                                                                 : formatCurrency((Number(inv.amount) || 0) * 0.002)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         {(() => {
                                                             const s = getPaymentStatusLabelAndClasses(inv);
                                                             return (
@@ -979,7 +981,7 @@ export default function InsuranceFormsPage() {
                                                             );
                                                         })()}
                                                     </td>
-                                                    <td className="px-2 py-3 xl:py-2 text-center">
+                                                    <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
                                                         <button
                                                             onClick={() => handleSendPaymentLink(inv)}
                                                             disabled={sendingPaymentInvoiceId === inv.id || !!inv.isRejected}
