@@ -238,7 +238,9 @@ export function AgentInvoicesModal({ open, onClose }: AgentInvoicesModalProps) {
                           {invoice.supplierName}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {invoice.invoiceDate}
+                          {invoice.createdAt
+                            ? new Date(invoice.createdAt).toLocaleDateString()
+                            : 'N/A'}
                         </p>
                       </div>
                       <div className="text-right">

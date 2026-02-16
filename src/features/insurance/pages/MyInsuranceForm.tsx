@@ -78,7 +78,9 @@ const MyInsuranceForms = () => {
                                     <div>
                                         <p className="font-bold text-lg">{form.invoiceNumber}</p>
                                         <p className="text-sm text-gray-500">
-                                            {new Date(form.invoiceDate).toLocaleDateString()}
+                                            {form.createdAt
+                                                ? new Date(form.createdAt).toLocaleDateString()
+                                                : 'N/A'}
                                         </p>
                                     </div>
                                     <span className="bg-purple-100 text-[#4309ac] text-xs px-2 py-1 rounded">

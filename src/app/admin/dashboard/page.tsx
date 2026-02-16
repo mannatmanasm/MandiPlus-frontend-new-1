@@ -70,7 +70,7 @@ export default function DashboardPage() {
                     id: inv.id || inv._id,
                     type: 'invoice',
                     description: `Invoice Created: ${inv.invoiceNumber} (${inv.supplierName})`,
-                    timestamp: inv.createdAt || inv.invoiceDate
+                    timestamp: inv.createdAt
                 }));
 
                 // Combine, Sort by Date (Desc), and take top 5

@@ -233,7 +233,9 @@ const HomePage = () => {
     setDamageFormData({
       damageCertificateDate: new Date().toISOString().split('T')[0],
       transportReceiptMemoNo: claim.invoice?.invoiceNumber || '',
-      transportReceiptDate: claim.invoice?.invoiceDate || '',
+      transportReceiptDate: claim.invoice?.createdAt
+        ? new Date(claim.invoice.createdAt).toISOString().split('T')[0]
+        : '',
       loadedWeightKg: claim.invoice?.quantity || 0,
       productName: claim.invoice?.productName?.[0] || '',
       fromParty: claim.invoice?.supplierName || '',
@@ -319,7 +321,9 @@ const HomePage = () => {
       truckNumber: invoice.truckNumber || '',
       weighmentSlipNote: invoice.weighmentSlipNote || '',
       invoiceType: 'BUYER_INVOICE', // Default to BUYER_INVOICE since invoiceType doesn't exist on InsuranceForm
-      invoiceDate: invoice.invoiceDate || new Date().toISOString().split('T')[0],
+      invoiceDate: invoice.createdAt
+        ? new Date(invoice.createdAt).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
     });
     setShowRegenerateForm(true);
   };
@@ -373,7 +377,7 @@ const HomePage = () => {
       const fresh = await getMyInsuranceForms();
       setInvoices(fresh);
 
-      alert('✅ Invoice updated successfully!');
+      alert('Invoice updated successfully!');
       setShowRegenerateForm(false);
       setSelectedInvoice(null);
       setWeightmentSlip(null);
@@ -575,7 +579,7 @@ const HomePage = () => {
               <p className="text-xs text-gray-500">View & Edit forms</p>
             </div>
 
-            {/* ✅ NEW: My Claims Card */}
+            {/* NEW: My Claims Card */}
             <div
               className="bg-white rounded-3xl p-4 shadow-sm cursor-pointer"
               onClick={handleOpenClaimsModal}
@@ -619,7 +623,7 @@ const HomePage = () => {
                   onClick={() => setShowInvoiceModal(false)}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  ✕
+                  
                 </button>
               </div>
 
@@ -636,7 +640,11 @@ const HomePage = () => {
                           <div>
                             <h4 className="font-semibold text-slate-800">{invoice.invoiceNumber}</h4>
                             <p className="text-sm text-gray-600">{invoice.supplierName}</p>
-                            <p className="text-xs text-gray-500">{invoice.invoiceDate}</p>
+                            <p className="text-xs text-gray-500">
+                              {invoice.createdAt
+                                ? new Date(invoice.createdAt).toLocaleDateString()
+                                : 'N/A'}
+                            </p>
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-slate-800">₹{invoice.amount?.toLocaleString()}</p>
@@ -670,7 +678,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {/* ✅ NEW: CLAIMS MODAL */}
+        {/* NEW: CLAIMS MODAL */}
         {showClaimsModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -772,7 +780,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {/* ✅ NEW: CLAIM SUCCESS MODAL */}
+        {/* NEW: CLAIM SUCCESS MODAL */}
         {showClaimSuccessModal && createdClaim && (
           <div className="fixed inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-3xl w-full max-w-md p-8 text-center shadow-2xl">
@@ -832,7 +840,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {/* ✅ NEW: CLAIM INVOICE MODAL (for My Claims list) */}
+        {/* NEW: CLAIM INVOICE MODAL (for My Claims list) */}
         {showClaimInvoiceModal && selectedClaimForInvoice && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl">
@@ -860,8 +868,8 @@ const HomePage = () => {
                   <div>
                     <div className="text-xs text-gray-500">Invoice Date</div>
                     <div>
-                      {selectedClaimForInvoice.invoice?.invoiceDate
-                        ? new Date(selectedClaimForInvoice.invoice.invoiceDate).toLocaleDateString()
+                      {selectedClaimForInvoice.invoice?.createdAt
+                        ? new Date(selectedClaimForInvoice.invoice.createdAt).toLocaleDateString()
                         : 'N/A'}
                     </div>
                   </div>

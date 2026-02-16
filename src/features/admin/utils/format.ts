@@ -19,6 +19,26 @@ export function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('en-US', options);
 }
 
+export function formatDateOnly(dateString: string): string {
+    if (!dateString) return '';
+    return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(dateString));
+}
+
+export function formatTimeOnly(dateString: string): string {
+    if (!dateString) return '';
+    return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    }).format(new Date(dateString));
+}
+
 /**
  * Format a currency value
  */
