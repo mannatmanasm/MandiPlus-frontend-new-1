@@ -843,7 +843,7 @@ export default function InsuranceFormsPage() {
                                                         <div className="break-words leading-snug">{inv.invoiceNumber}</div>
                                                     </td>
                                                     <td className={`sticky left-[200px] z-[900] w-32 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-600 align-top relative overflow-hidden ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
-                                                        <div className="break-words leading-snug">{formatDate(inv.createdAt)}</div>
+                                                        <div className="break-words leading-snug">{formatDate(inv.invoiceDate || inv.createdAt)}</div>
                                                     </td>
                                                     <td className={`sticky left-[328px] z-[900] w-44 bg-white bg-clip-padding px-3 py-3 xl:px-2 xl:py-2 text-sm xl:text-[13px] text-slate-700 align-top relative overflow-hidden shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 ${expandedInvoiceId === inv.id ? 'bg-slate-50' : ''}`}>
                                                         <div className="break-words leading-snug">{getInsuredPersonName(inv)}</div>
@@ -1177,7 +1177,7 @@ export default function InsuranceFormsPage() {
                                                 {inv.invoiceNumber}
                                             </h3>
                                             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                                                {formatDate(inv.createdAt)}
+                                                {formatDate(inv.invoiceDate || inv.createdAt)}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-1.5 sm:gap-2 ml-2">
