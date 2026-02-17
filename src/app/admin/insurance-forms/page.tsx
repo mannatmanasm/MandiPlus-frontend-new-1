@@ -113,6 +113,17 @@ export default function InsuranceFormsPage() {
     const [exportType, setExportType] = useState<'all' | 'payment'>('all');
     const [showFilters, setShowFilters] = useState(false);
     const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+    const [invoiceMenuPlacement, setInvoiceMenuPlacement] = useState<Record<string, 'up' | 'down'>>({});
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalType, setModalType] = useState<'verify' | 'reject' | 'info' | null>(null);
+    const [modalInvoice, setModalInvoice] = useState<Invoice | null>(null);
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalMessage, setModalMessage] = useState('');
+    const [modalPrimaryLabel, setModalPrimaryLabel] = useState('');
+    const [modalSecondaryLabel, setModalSecondaryLabel] = useState('Cancel');
+    const [modalPrimaryAction, setModalPrimaryAction] = useState<(() => void) | null>(null);
+    const [rejectReasonDraft, setRejectReasonDraft] = useState('');
 
     // --- Cropper & File State ---
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -300,19 +311,55 @@ export default function InsuranceFormsPage() {
         }
     };
 
-    const handleRejectInvoice = async (inv: Invoice) => {
-        if (rejectingInvoiceId) return;
-        if (inv.isRejected) return;
+    const closeActionModal = () => {
+        setModalOpen(false);
+        setModalType(null);
+        setModalInvoice(null);
+        setModalTitle('');
+        setModalMessage('');
+        setModalPrimaryLabel('');
+        setModalSecondaryLabel('Cancel');
+        setModalPrimaryAction(null);
+        setRejectReasonDraft('');
+    };
 
-        const rejectionReason = window.prompt('Reject this invoice? Optional: enter a reason (admin only).', '');
-        const confirmed = window.confirm('Are you sure you want to reject this invoice?');
-        if (!confirmed) return;
+    const requestVerify = (inv: Invoice) => {
+        if (verifyingInvoiceId) return;
+        if (inv.isVerified && !inv.isRejected) return;
+        setModalInvoice(inv);
+        setModalType('verify');
+        setModalTitle('Verify invoice?');
+        setModalMessage('This will mark the invoice as verified.');
+        setModalPrimaryLabel('Verify');
+        setModalSecondaryLabel('Cancel');
+        setModalPrimaryAction(() => () => confirmVerifyInvoice(inv));
+        setModalOpen(true);
+    };
+
+    const confirmVerifyInvoice = async (inv: Invoice) => {
+        closeActionModal();
+        await handleVerifyOnly(inv);
+    };
+
+    const requestReject = (inv: Invoice) => {
+        void handleRejectInvoice(inv);
+    };
+
+    const confirmRejectInvoice = async () => {
+        if (!modalInvoice) {
+            closeActionModal();
+            return;
+        }
+
+        const inv = modalInvoice;
+        const rejectionReason = rejectReasonDraft.trim() || undefined;
+        closeActionModal();
 
         try {
             setRejectingInvoiceId(inv.id);
             toast.loading('Rejecting invoice...', { toastId: 'reject-invoice' });
 
-            const res = await adminApi.rejectInvoice(inv.id, rejectionReason || undefined);
+            const res = await adminApi.rejectInvoice(inv.id, rejectionReason);
             if (!res.success) {
                 throw new Error(res.message || 'Failed to reject invoice');
             }
@@ -335,6 +382,22 @@ export default function InsuranceFormsPage() {
         } finally {
             setRejectingInvoiceId(null);
         }
+    };
+
+    const handleRejectInvoice = async (inv: Invoice) => {
+        if (rejectingInvoiceId) return;
+        if (inv.isRejected) return;
+
+        setRejectReasonDraft(inv.rejectionReason || '');
+        setModalInvoice(inv);
+        setModalType('reject');
+        setModalTitle('Reject invoice?');
+        setModalMessage('Optionally add a reason (admin only).');
+        setModalPrimaryLabel('Reject');
+        setModalSecondaryLabel('Cancel');
+        setModalPrimaryAction(() => () => confirmRejectInvoice());
+        setModalOpen(true);
+        return;
     };
 
     const handleVerifyOnly = async (inv: Invoice) => {
@@ -579,10 +642,25 @@ export default function InsuranceFormsPage() {
             return;
         }
 
+        if (!inv.isVerified) {
+            setModalInvoice(inv);
+            setModalType('info');
+            setModalTitle('Verify required');
+            setModalMessage('Please verify the invoice before sending the payment link.');
+            setModalPrimaryLabel('Verify invoice');
+            setModalSecondaryLabel('Close');
+            setModalPrimaryAction(() => () => {
+                closeActionModal();
+                requestVerify(inv);
+            });
+            setModalOpen(true);
+            return;
+        }
+
         try {
             setSendingPaymentInvoiceId(inv.id);
             toast.loading(
-                inv.isVerified ? 'Sending payment link...' : 'Verifying invoice & sending payment link...',
+                'Sending payment link...',
                 { toastId: 'payment-link' },
             );
 
@@ -622,6 +700,17 @@ export default function InsuranceFormsPage() {
         return 'Sent';
     };
 
+    const updateInvoiceMenuPlacement = (invoiceId: string, el: HTMLElement | null) => {
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const menuApproxHeight = 240;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const placement: 'up' | 'down' = spaceBelow < menuApproxHeight ? 'up' : 'down';
+
+        setInvoiceMenuPlacement((prev) => (prev[invoiceId] === placement ? prev : { ...prev, [invoiceId]: placement }));
+    };
+
     const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
     const paginatedInvoices = invoices.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
@@ -630,6 +719,69 @@ export default function InsuranceFormsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 py-4 sm:py-6">
+            {modalOpen && (
+                <div className="fixed inset-0 z-[2100] flex items-center justify-center p-3 sm:p-4">
+                    <div
+                        className="absolute inset-0 bg-black/40"
+                        onClick={closeActionModal}
+                    />
+                    <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
+                        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                            <div className="min-w-0">
+                                <h3 className="text-base font-semibold text-slate-900 truncate">{modalTitle}</h3>
+                                {modalMessage && (
+                                    <p className="mt-1 text-sm text-slate-600">{modalMessage}</p>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeActionModal}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                                aria-label="Close"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="px-5 py-4">
+                            {modalType === 'reject' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-800 mb-1">Reason (optional)</label>
+                                    <textarea
+                                        value={rejectReasonDraft}
+                                        onChange={(e) => setRejectReasonDraft(e.target.value)}
+                                        rows={3}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#4309ac] focus:ring-2 focus:ring-[#4309ac]/20"
+                                        placeholder="Add a rejection reason..."
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={closeActionModal}
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                                {modalSecondaryLabel || 'Cancel'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => modalPrimaryAction?.()}
+                                className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${
+                                    modalType === 'reject'
+                                        ? 'bg-rose-600 hover:bg-rose-700'
+                                        : 'bg-[#4309ac] hover:bg-[#2f0679]'
+                                }`}
+                            >
+                                {modalPrimaryLabel || 'Continue'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Cropper Overlay */}
             {isCropping && imageSrc && (
                 <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -930,7 +1082,7 @@ export default function InsuranceFormsPage() {
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleVerifyOnly(inv)}
+                                                                    onClick={() => requestVerify(inv)}
                                                                     className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     title="Verify Invoice"
                                                                     aria-label="Verify Invoice"
@@ -940,7 +1092,7 @@ export default function InsuranceFormsPage() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleRejectInvoice(inv)}
+                                                                    onClick={() => requestReject(inv)}
                                                                     className="inline-flex items-center justify-center w-8 h-8 rounded-md text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     title="Reject Invoice"
                                                                     aria-label="Reject Invoice"
@@ -1055,6 +1207,7 @@ export default function InsuranceFormsPage() {
                                                                 <Menu.Button
                                                                     className="inline-flex items-center justify-center w-10 h-10 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     title="Actions"
+                                                                    onClick={(e) => updateInvoiceMenuPlacement(inv.id, e.currentTarget)}
                                                                     disabled={
                                                                         verifyingInvoiceId === inv.id ||
                                                                         rejectingInvoiceId === inv.id ||
@@ -1073,14 +1226,20 @@ export default function InsuranceFormsPage() {
                                                                     leaveFrom="transform opacity-100 scale-100"
                                                                     leaveTo="transform opacity-0 scale-95"
                                                                 >
-                                                                    <Menu.Items className="absolute right-0 bottom-full z-50 mb-2 w-56 origin-bottom-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                                    <Menu.Items
+                                                                        className={`absolute right-0 z-50 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none ${
+                                                                            invoiceMenuPlacement[inv.id] === 'up'
+                                                                                ? 'bottom-full mb-2 origin-bottom-right'
+                                                                                : 'top-full mt-2 origin-top-right'
+                                                                        }`}
+                                                                    >
                                                                         {!inv.isRejected && !inv.isVerified && (
                                                                             <>
                                                                                 <Menu.Item>
                                                                                     {({ active }) => (
                                                                                         <button
                                                                                             type="button"
-                                                                                            onClick={() => handleVerifyOnly(inv)}
+                                                                                            onClick={() => requestVerify(inv)}
                                                                                             className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                                         >
                                                                                             <CheckIcon className="w-4 h-4 text-emerald-600" />
@@ -1092,7 +1251,7 @@ export default function InsuranceFormsPage() {
                                                                                     {({ active }) => (
                                                                                         <button
                                                                                             type="button"
-                                                                                            onClick={() => handleRejectInvoice(inv)}
+                                                                                            onClick={() => requestReject(inv)}
                                                                                             className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                                         >
                                                                                             <XCircle className="w-4 h-4 text-rose-600" />
@@ -1108,7 +1267,7 @@ export default function InsuranceFormsPage() {
                                                                                 {({ active }) => (
                                                                                     <button
                                                                                         type="button"
-                                                                                        onClick={() => handleRejectInvoice(inv)}
+                                                                                        onClick={() => requestReject(inv)}
                                                                                         className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                                     >
                                                                                         <XCircle className="w-4 h-4 text-rose-600" />
@@ -1123,7 +1282,7 @@ export default function InsuranceFormsPage() {
                                                                                 {({ active }) => (
                                                                                     <button
                                                                                         type="button"
-                                                                                        onClick={() => handleVerifyOnly(inv)}
+                                                                                        onClick={() => requestVerify(inv)}
                                                                                         className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                                     >
                                                                                         <RotateCcw className="w-4 h-4 text-emerald-600" />
@@ -1379,6 +1538,7 @@ export default function InsuranceFormsPage() {
                                                     <Menu.Button
                                                         className="inline-flex items-center justify-center w-9 h-9 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                                         title="Actions"
+                                                        onClick={(e) => updateInvoiceMenuPlacement(inv.id, e.currentTarget)}
                                                         disabled={sendingPaymentInvoiceId === inv.id}
                                                     >
                                                         <MoreVertical className="w-4 h-4" />
@@ -1393,14 +1553,20 @@ export default function InsuranceFormsPage() {
                                                         leaveFrom="transform opacity-100 scale-100"
                                                         leaveTo="transform opacity-0 scale-95"
                                                     >
-                                                        <Menu.Items className="absolute right-0 bottom-full z-50 mb-2 w-56 origin-bottom-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                        <Menu.Items
+                                                            className={`absolute right-0 z-50 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none ${
+                                                                invoiceMenuPlacement[inv.id] === 'up'
+                                                                    ? 'bottom-full mb-2 origin-bottom-right'
+                                                                    : 'top-full mt-2 origin-top-right'
+                                                            }`}
+                                                        >
                                                             {!inv.isRejected && !inv.isVerified && (
                                                                 <>
                                                                     <Menu.Item>
                                                                         {({ active }) => (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => handleVerifyOnly(inv)}
+                                                                                onClick={() => requestVerify(inv)}
                                                                                 className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                             >
                                                                                 <CheckIcon className="w-4 h-4 text-emerald-600" />
@@ -1412,7 +1578,7 @@ export default function InsuranceFormsPage() {
                                                                         {({ active }) => (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => handleRejectInvoice(inv)}
+                                                                                onClick={() => requestReject(inv)}
                                                                                 className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                             >
                                                                                 <XCircle className="w-4 h-4 text-rose-600" />
@@ -1428,7 +1594,7 @@ export default function InsuranceFormsPage() {
                                                                     {({ active }) => (
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => handleRejectInvoice(inv)}
+                                                                            onClick={() => requestReject(inv)}
                                                                             className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                         >
                                                                             <XCircle className="w-4 h-4 text-rose-600" />
@@ -1443,7 +1609,7 @@ export default function InsuranceFormsPage() {
                                                                     {({ active }) => (
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => handleVerifyOnly(inv)}
+                                                                            onClick={() => requestVerify(inv)}
                                                                             className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
                                                                         >
                                                                             <RotateCcw className="w-4 h-4 text-emerald-600" />
@@ -1526,7 +1692,7 @@ export default function InsuranceFormsPage() {
                                             <div className="flex flex-col sm:flex-row gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleVerifyOnly(inv)}
+                                                    onClick={() => requestVerify(inv)}
                                                     disabled={verifyingInvoiceId === inv.id}
                                                     className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >
@@ -1535,7 +1701,7 @@ export default function InsuranceFormsPage() {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleRejectInvoice(inv)}
+                                                    onClick={() => requestReject(inv)}
                                                     disabled={rejectingInvoiceId === inv.id}
                                                     className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                                     title="Reject Invoice"
