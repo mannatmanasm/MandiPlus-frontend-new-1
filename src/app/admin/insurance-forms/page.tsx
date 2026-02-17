@@ -9,7 +9,8 @@ import { toast } from 'react-toastify';
 import 'cropperjs/dist/cropper.css';
 import Cropper, { ReactCropperElement } from "react-cropper";
 import { ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { FileText, RefreshCw, Upload, Eye, CheckCircle, AlertCircle, Filter, X, XCircle, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
+import { Menu, Transition } from '@headlessui/react';
+import { FileText, RefreshCw, Upload, Eye, CheckCircle, AlertCircle, Filter, X, XCircle, Pencil, ChevronDown, ChevronRight, MoreVertical, Link as LinkIcon, RotateCcw } from 'lucide-react';
 
 import InsuranceUploadModal from '@/features/admin/components/InsuranceUploadModal';
 import { uploadWeighmentSlips } from '@/features/insurance/api';
@@ -68,6 +69,8 @@ interface Invoice {
     paymentAmount?: number | null;
     isPaymentRequired?: boolean;
     paymentLinkUrl?: string | null;
+    paymentLinkSentAt?: string | null;
+    paymentLinkSentCount?: number | null;
     insurance?: {
         fileUrl: string;
         fileType: string;
@@ -297,46 +300,6 @@ export default function InsuranceFormsPage() {
         }
     };
 
-    const handleVerifyInvoice = async (invoiceId: string) => {
-        if (verifyingInvoiceId) return;
-
-        const confirmed = window.confirm(
-            "Verify invoice and send payment link via WhatsApp? This action cannot be undone."
-        );
-
-        if (!confirmed) return;
-
-        try {
-            setVerifyingInvoiceId(invoiceId);
-
-            toast.loading("Verifying & sending payment link...", { toastId: "verify-invoice" });
-
-            const res = await adminApi.verifyAndSendPaymentForInvoice(invoiceId);
-
-            if (!res.success) {
-                throw new Error(res.message || "Verification failed");
-            }
-
-            toast.update("verify-invoice", {
-                render: "Invoice verified and payment link sent",
-                type: "success",
-                isLoading: false,
-                autoClose: 2000,
-            });
-
-            await fetchInvoices();
-        } catch (error: any) {
-            toast.update("verify-invoice", {
-                render: error.message || "Failed to verify invoice",
-                type: "error",
-                isLoading: false,
-                autoClose: 3000,
-            });
-        } finally {
-            setVerifyingInvoiceId(null);
-        }
-    };
-
     const handleRejectInvoice = async (inv: Invoice) => {
         if (rejectingInvoiceId) return;
         if (inv.isRejected) return;
@@ -371,6 +334,38 @@ export default function InsuranceFormsPage() {
             });
         } finally {
             setRejectingInvoiceId(null);
+        }
+    };
+
+    const handleVerifyOnly = async (inv: Invoice) => {
+        if (verifyingInvoiceId) return;
+
+        try {
+            setVerifyingInvoiceId(inv.id);
+            toast.loading('Verifying invoice...', { toastId: 'verify-only' });
+
+            const res = await adminApi.verifyInvoice(inv.id);
+            if (!res.success) {
+                throw new Error(res.message || 'Failed to verify invoice');
+            }
+
+            toast.update('verify-only', {
+                render: 'Invoice verified',
+                type: 'success',
+                isLoading: false,
+                autoClose: 2000,
+            });
+
+            await fetchInvoices();
+        } catch (error: any) {
+            toast.update('verify-only', {
+                render: error?.message || 'Failed to verify invoice',
+                type: 'error',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setVerifyingInvoiceId(null);
         }
     };
 
@@ -584,14 +579,12 @@ export default function InsuranceFormsPage() {
             return;
         }
 
-        const confirmed = window.confirm(
-            'Verify invoice and send payment link via WhatsApp? This action cannot be undone.',
-        );
-        if (!confirmed) return;
-
         try {
             setSendingPaymentInvoiceId(inv.id);
-            toast.loading('Generating payment link...', { toastId: 'payment-link' });
+            toast.loading(
+                inv.isVerified ? 'Sending payment link...' : 'Verifying invoice & sending payment link...',
+                { toastId: 'payment-link' },
+            );
 
             const res = await adminApi.verifyAndSendPaymentForInvoice(inv.id);
             if (!res.success) {
@@ -616,6 +609,17 @@ export default function InsuranceFormsPage() {
         } finally {
             setSendingPaymentInvoiceId(null);
         }
+    };
+
+    const getPaymentLinkSentLabel = (inv: Invoice) => {
+        const count = typeof inv.paymentLinkSentCount === 'number' ? inv.paymentLinkSentCount : null;
+        const hasAt = Boolean(inv.paymentLinkSentAt);
+        const hasSent = hasAt || (count !== null && count > 0);
+
+        if (!hasSent) return null;
+
+        if (count !== null && count > 1) return `Sent (${count})`;
+        return 'Sent';
     };
 
     const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
@@ -925,7 +929,8 @@ export default function InsuranceFormsPage() {
                                                         ) : (
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button
-                                                                    onClick={() => handleVerifyInvoice(inv.id)}
+                                                                    type="button"
+                                                                    onClick={() => handleVerifyOnly(inv)}
                                                                     className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     title="Verify Invoice"
                                                                     aria-label="Verify Invoice"
@@ -934,6 +939,7 @@ export default function InsuranceFormsPage() {
                                                                     <CheckIcon className="w-4 h-4" />
                                                                 </button>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => handleRejectInvoice(inv)}
                                                                     className="inline-flex items-center justify-center w-8 h-8 rounded-md text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     title="Reject Invoice"
@@ -1026,26 +1032,129 @@ export default function InsuranceFormsPage() {
                                                         })()}
                                                     </td>
                                                     <td className={`px-2 py-3 xl:py-2 text-center align-top ${expandedInvoiceId === inv.id ? 'bg-slate-50' : 'bg-white'}`}>
-                                                        <button
-                                                            onClick={() => handleSendPaymentLink(inv)}
-                                                            disabled={sendingPaymentInvoiceId === inv.id || !!inv.isRejected}
-                                                            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-[#25D366] text-white shadow-sm hover:bg-[#1fb85a] disabled:opacity-40 disabled:cursor-not-allowed"
-                                                            title={sendingPaymentInvoiceId === inv.id ? 'Sending...' : 'Send Payment Link (WhatsApp)'}
-                                                            aria-label="Send Payment Link (WhatsApp)"
-                                                        >
-                                                            {sendingPaymentInvoiceId === inv.id ? (
-                                                                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {getPaymentLinkSentLabel(inv) ? (
+                                                                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                                                    {getPaymentLinkSentLabel(inv)}
+                                                                </span>
                                                             ) : (
-                                                                <svg
-                                                                    viewBox="0 0 448 512"
-                                                                    className="w-5 h-5"
-                                                                    fill="currentColor"
-                                                                    aria-hidden="true"
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleSendPaymentLink(inv)}
+                                                                    disabled={sendingPaymentInvoiceId === inv.id || inv.isRejected}
+                                                                    className="inline-flex items-center justify-center w-10 h-10 text-[#25D366] hover:bg-[#25D366]/10 rounded-lg border border-[#25D366]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    title="Send Payment Link"
                                                                 >
-                                                                    <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-                                                                </svg>
+                                                                    <svg viewBox="0 0 448 512" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+                                                                        <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+                                                                    </svg>
+                                                                </button>
                                                             )}
-                                                        </button>
+
+                                                            <Menu as="div" className="relative inline-block text-left">
+                                                                <Menu.Button
+                                                                    className="inline-flex items-center justify-center w-10 h-10 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    title="Actions"
+                                                                    disabled={
+                                                                        verifyingInvoiceId === inv.id ||
+                                                                        rejectingInvoiceId === inv.id ||
+                                                                        sendingPaymentInvoiceId === inv.id
+                                                                    }
+                                                                >
+                                                                    <MoreVertical className="w-4 h-4" />
+                                                                </Menu.Button>
+
+                                                                <Transition
+                                                                    as={Fragment}
+                                                                    enter="transition ease-out duration-100"
+                                                                    enterFrom="transform opacity-0 scale-95"
+                                                                    enterTo="transform opacity-100 scale-100"
+                                                                    leave="transition ease-in duration-75"
+                                                                    leaveFrom="transform opacity-100 scale-100"
+                                                                    leaveTo="transform opacity-0 scale-95"
+                                                                >
+                                                                    <Menu.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                                        {!inv.isRejected && !inv.isVerified && (
+                                                                            <>
+                                                                                <Menu.Item>
+                                                                                    {({ active }) => (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleVerifyOnly(inv)}
+                                                                                            className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                                        >
+                                                                                            <CheckIcon className="w-4 h-4 text-emerald-600" />
+                                                                                            Verify
+                                                                                        </button>
+                                                                                    )}
+                                                                                </Menu.Item>
+                                                                                <Menu.Item>
+                                                                                    {({ active }) => (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleRejectInvoice(inv)}
+                                                                                            className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                                        >
+                                                                                            <XCircle className="w-4 h-4 text-rose-600" />
+                                                                                            Reject
+                                                                                        </button>
+                                                                                    )}
+                                                                                </Menu.Item>
+                                                                            </>
+                                                                        )}
+
+                                                                        {!inv.isRejected && inv.isVerified && (
+                                                                            <Menu.Item>
+                                                                                {({ active }) => (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleRejectInvoice(inv)}
+                                                                                        className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                                    >
+                                                                                        <XCircle className="w-4 h-4 text-rose-600" />
+                                                                                        Reject
+                                                                                    </button>
+                                                                                )}
+                                                                            </Menu.Item>
+                                                                        )}
+
+                                                                        {inv.isRejected && (
+                                                                            <Menu.Item>
+                                                                                {({ active }) => (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleVerifyOnly(inv)}
+                                                                                        className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                                    >
+                                                                                        <RotateCcw className="w-4 h-4 text-emerald-600" />
+                                                                                        Verify
+                                                                                    </button>
+                                                                                )}
+                                                                            </Menu.Item>
+                                                                        )}
+
+                                                                        {!inv.isRejected && (
+                                                                            <Menu.Item>
+                                                                                {({ active }) => (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleSendPaymentLink(inv)}
+                                                                                        className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                                    >
+                                                                                        {getPaymentLinkSentLabel(inv) ? (
+                                                                                            <RotateCcw className="w-4 h-4 text-[#25D366]" />
+                                                                                        ) : (
+                                                                                            <LinkIcon className="w-4 h-4 text-[#25D366]" />
+                                                                                        )}
+                                                                                        {getPaymentLinkSentLabel(inv) ? 'Resend payment link' : 'Send payment link'}
+                                                                                    </button>
+                                                                                )}
+                                                                            </Menu.Item>
+                                                                        )}
+                                                                    </Menu.Items>
+                                                                </Transition>
+                                                            </Menu>
+                                                        </div>
                                                     </td>
                                                 </tr>
 
@@ -1246,6 +1355,127 @@ export default function InsuranceFormsPage() {
                                                     <FileText className="w-4 h-4" />
                                                 </button>
                                             )}
+
+                                            <div className="flex items-center gap-2">
+                                                {getPaymentLinkSentLabel(inv) ? (
+                                                    <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                                        {getPaymentLinkSentLabel(inv)}
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSendPaymentLink(inv)}
+                                                        disabled={sendingPaymentInvoiceId === inv.id || inv.isRejected}
+                                                        className="inline-flex items-center justify-center w-9 h-9 text-[#25D366] hover:bg-[#25D366]/10 rounded-lg border border-[#25D366]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Send Payment Link"
+                                                    >
+                                                        <svg viewBox="0 0 448 512" className="w-4 h-4" fill="currentColor" aria-hidden="true">
+                                                            <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+
+                                                <Menu as="div" className="relative inline-block text-left">
+                                                    <Menu.Button
+                                                        className="inline-flex items-center justify-center w-9 h-9 text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Actions"
+                                                        disabled={sendingPaymentInvoiceId === inv.id}
+                                                    >
+                                                        <MoreVertical className="w-4 h-4" />
+                                                    </Menu.Button>
+
+                                                    <Transition
+                                                        as={Fragment}
+                                                        enter="transition ease-out duration-100"
+                                                        enterFrom="transform opacity-0 scale-95"
+                                                        enterTo="transform opacity-100 scale-100"
+                                                        leave="transition ease-in duration-75"
+                                                        leaveFrom="transform opacity-100 scale-100"
+                                                        leaveTo="transform opacity-0 scale-95"
+                                                    >
+                                                        <Menu.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                            {!inv.isRejected && !inv.isVerified && (
+                                                                <>
+                                                                    <Menu.Item>
+                                                                        {({ active }) => (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleVerifyOnly(inv)}
+                                                                                className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                            >
+                                                                                <CheckIcon className="w-4 h-4 text-emerald-600" />
+                                                                                Verify
+                                                                            </button>
+                                                                        )}
+                                                                    </Menu.Item>
+                                                                    <Menu.Item>
+                                                                        {({ active }) => (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleRejectInvoice(inv)}
+                                                                                className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                            >
+                                                                                <XCircle className="w-4 h-4 text-rose-600" />
+                                                                                Reject
+                                                                            </button>
+                                                                        )}
+                                                                    </Menu.Item>
+                                                                </>
+                                                            )}
+
+                                                            {!inv.isRejected && inv.isVerified && (
+                                                                <Menu.Item>
+                                                                    {({ active }) => (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleRejectInvoice(inv)}
+                                                                            className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                        >
+                                                                            <XCircle className="w-4 h-4 text-rose-600" />
+                                                                            Reject
+                                                                        </button>
+                                                                    )}
+                                                                </Menu.Item>
+                                                            )}
+
+                                                            {inv.isRejected && (
+                                                                <Menu.Item>
+                                                                    {({ active }) => (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleVerifyOnly(inv)}
+                                                                            className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                        >
+                                                                            <RotateCcw className="w-4 h-4 text-emerald-600" />
+                                                                            Verify
+                                                                        </button>
+                                                                    )}
+                                                                </Menu.Item>
+                                                            )}
+
+                                                            {!inv.isRejected && (
+                                                                <Menu.Item>
+                                                                    {({ active }) => (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSendPaymentLink(inv)}
+                                                                            className={`${active ? 'bg-gray-100' : ''} flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700`}
+                                                                        >
+                                                                            {getPaymentLinkSentLabel(inv) ? (
+                                                                                <RotateCcw className="w-4 h-4 text-[#25D366]" />
+                                                                            ) : (
+                                                                                <LinkIcon className="w-4 h-4 text-[#25D366]" />
+                                                                            )}
+                                                                            {getPaymentLinkSentLabel(inv) ? 'Resend payment link' : 'Send payment link'}
+                                                                        </button>
+                                                                    )}
+                                                                </Menu.Item>
+                                                            )}
+                                                        </Menu.Items>
+                                                    </Transition>
+                                                </Menu>
+                                            </div>
+
                                             <button
                                                 onClick={() => handleEditClick(inv)}
                                                 className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200"
@@ -1295,13 +1525,16 @@ export default function InsuranceFormsPage() {
                                         ) : (
                                             <div className="flex flex-col sm:flex-row gap-2">
                                                 <button
-                                                    onClick={() => handleVerifyInvoice(inv.id)}
-                                                    className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                    type="button"
+                                                    onClick={() => handleVerifyOnly(inv)}
+                                                    disabled={verifyingInvoiceId === inv.id}
+                                                    className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
                                                     Verify Invoice
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={() => handleRejectInvoice(inv)}
                                                     disabled={rejectingInvoiceId === inv.id}
                                                     className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
