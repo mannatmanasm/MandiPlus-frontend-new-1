@@ -411,6 +411,12 @@ export default function InsuranceFormsPage() {
 
         if (modalType === 'verify' && modalInvoice) {
             void confirmVerifyInvoice(modalInvoice);
+            return;
+        }
+
+        if (modalType === 'info' && modalInvoice) {
+            closeActionModal();
+            requestVerify(modalInvoice);
         }
     };
 
@@ -663,10 +669,6 @@ export default function InsuranceFormsPage() {
             setModalMessage('Please verify the invoice before sending the payment link.');
             setModalPrimaryLabel('Verify invoice');
             setModalSecondaryLabel('Close');
-            setModalPrimaryAction(() => () => {
-                closeActionModal();
-                requestVerify(inv);
-            });
             setModalOpen(true);
             return;
         }
