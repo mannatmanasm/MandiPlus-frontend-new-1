@@ -31,9 +31,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     const login = async (email: string, password: string) => {
         try {
             const response = await adminApi.login(email, password);
-            if (response.data?.token) {
-                localStorage.setItem('adminToken', response.data.token);
-                adminApi.setAuthToken(response.data.token);
+            const token = response.data?.token;
+            if (token) {
+                localStorage.setItem('adminToken', token);
+                adminApi.setAuthToken(token);
                 setIsAuthenticated(true);
                 router.push('/admin/dashboard');
             }
