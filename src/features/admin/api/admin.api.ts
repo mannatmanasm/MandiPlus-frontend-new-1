@@ -161,6 +161,8 @@ const API_BASE_URL =
 class AdminApi {
   private client: AxiosInstance;
   private authToken: string | null = null;
+  private adminUsersEndpointAvailable: boolean | null = null;
+  private adminInsuranceFormsEndpointAvailable: boolean | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -263,11 +265,37 @@ class AdminApi {
     searchTerm: string = "",
   ): Promise<ApiResponse<{ users: User[]; total: number }>> => {
     try {
-      const response =
-        await this.client.get<ApiResponse<{ users: User[]; total: number }>>(
-          "/admin/users",
-        );
-      return response.data;
+      if (this.adminUsersEndpointAvailable !== false) {
+        try {
+          const response = await this.client.get<
+            ApiResponse<{ users: User[]; total: number }>
+          >("/admin/users");
+          this.adminUsersEndpointAvailable = true;
+          return response.data;
+        } catch (error: any) {
+          const status = (error as AxiosError)?.response?.status;
+          if (status !== 404) throw error;
+          this.adminUsersEndpointAvailable = false;
+        }
+      }
+
+      const fallback = await this.client.get<any>("/users");
+      if (Array.isArray(fallback.data)) {
+        return {
+          success: true,
+          data: { users: fallback.data as User[], total: fallback.data.length },
+        };
+      }
+      if (Array.isArray(fallback.data?.data)) {
+        return {
+          success: true,
+          data: {
+            users: fallback.data.data as User[],
+            total: fallback.data.data.length,
+          },
+        };
+      }
+      return fallback.data;
     } catch (error: any) {
       return {
         success: false,
@@ -283,10 +311,40 @@ class AdminApi {
     searchTerm: string = "",
   ): Promise<ApiResponse<{ forms: InsuranceForm[]; total: number }>> => {
     try {
-      const response = await this.client.get<
-        ApiResponse<{ forms: InsuranceForm[]; total: number }>
-      >("/admin/insurance-forms");
-      return response.data;
+      if (this.adminInsuranceFormsEndpointAvailable !== false) {
+        try {
+          const response = await this.client.get<
+            ApiResponse<{ forms: InsuranceForm[]; total: number }>
+          >("/admin/insurance-forms");
+          this.adminInsuranceFormsEndpointAvailable = true;
+          return response.data;
+        } catch (error: any) {
+          const status = (error as AxiosError)?.response?.status;
+          if (status !== 404) throw error;
+          this.adminInsuranceFormsEndpointAvailable = false;
+        }
+      }
+
+      const fallback = await this.client.get<any>("/invoices");
+      if (Array.isArray(fallback.data)) {
+        return {
+          success: true,
+          data: {
+            forms: fallback.data as InsuranceForm[],
+            total: fallback.data.length,
+          },
+        };
+      }
+      if (Array.isArray(fallback.data?.data)) {
+        return {
+          success: true,
+          data: {
+            forms: fallback.data.data as InsuranceForm[],
+            total: fallback.data.data.length,
+          },
+        };
+      }
+      return fallback.data;
     } catch (error: any) {
       return {
         success: false,
