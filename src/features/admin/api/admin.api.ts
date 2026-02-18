@@ -483,7 +483,15 @@ class AdminApi {
       const response = await this.client.patch<ApiResponse<any>>(
         `/invoices/${invoiceId}/verify`,
       );
-      return response.data;
+      const payload: any = response.data;
+      if (payload && typeof payload === "object" && "success" in payload) {
+        return payload as ApiResponse<any>;
+      }
+      return {
+        success: true,
+        message: "Invoice verified successfully",
+        data: payload,
+      };
     } catch (error: any) {
       return {
         success: false,
@@ -493,20 +501,77 @@ class AdminApi {
     }
   };
 
+  private normalizeApiResponse(payload: any, defaultMessage: string): ApiResponse<any> {
+    if (payload && typeof payload === "object" && "success" in payload) {
+      return payload as ApiResponse<any>;
+    }
+    return {
+      success: true,
+      message: defaultMessage,
+      data: payload,
+    };
+  }
+
+  private getAxiosErrorMessage(error: any, fallback: string): string {
+    const responseData = error?.response?.data;
+    if (typeof responseData?.message === "string" && responseData.message.trim()) {
+      return responseData.message;
+    }
+    if (Array.isArray(responseData?.message) && responseData.message.length > 0) {
+      return responseData.message.join(", ");
+    }
+    return fallback;
+  }
+
   public rejectInvoice = async (
     invoiceId: string,
     rejectionReason?: string,
   ): Promise<ApiResponse<any>> => {
+    const trimmedReason = rejectionReason?.trim();
+    const body = {
+      rejectionReason: trimmedReason,
+      // Keep `reason` for backwards compatibility with older backend payloads.
+      reason: trimmedReason,
+    };
+    const endpointCandidates = [
+      `/invoices/${invoiceId}/reject`,
+      `/admin/invoices/${invoiceId}/reject`,
+    ];
+
     try {
-      const response = await this.client.patch<ApiResponse<any>>(
-        `/invoices/${invoiceId}/reject`,
-        { rejectionReason },
-      );
-      return response.data;
+      for (const endpoint of endpointCandidates) {
+        try {
+          const response = await this.client.patch<ApiResponse<any>>(endpoint, body);
+          return this.normalizeApiResponse(response.data, "Invoice rejected successfully");
+        } catch (innerError: any) {
+          const status = innerError?.response?.status;
+          // Try next endpoint on method/path mismatch.
+          if (status === 404 || status === 405) {
+            try {
+              const fallbackResponse = await this.client.post<ApiResponse<any>>(endpoint, body);
+              return this.normalizeApiResponse(
+                fallbackResponse.data,
+                "Invoice rejected successfully",
+              );
+            } catch (postError: any) {
+              const postStatus = postError?.response?.status;
+              if (postStatus === 404 || postStatus === 405) {
+                continue;
+              }
+              throw postError;
+            }
+          }
+          throw innerError;
+        }
+      }
+      return {
+        success: false,
+        message: "Reject endpoint not found on server",
+      };
     } catch (error: any) {
       return {
         success: false,
-        message: error.response?.data?.message || "Failed to reject invoice",
+        message: this.getAxiosErrorMessage(error, "Failed to reject invoice"),
         error: error.message,
       };
     }

@@ -35,6 +35,7 @@ function useDebounce<T>(value: T, delay: number): T {
 const INSURANCE_OVERRIDES_KEY = 'admin_invoice_insurance_overrides';
 const getInvoiceKey = (inv: { id?: string; _id?: string; invoiceNumber?: string }) =>
     inv?.id || inv?._id || inv?.invoiceNumber || '';
+const getInvoiceId = (inv: { id?: string; _id?: string }) => inv?.id || inv?._id || '';
 
 interface Invoice {
     id: string;
@@ -205,7 +206,11 @@ export default function InsuranceFormsPage() {
                 new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
 
-            const merged = sortedData.map((inv: any) => {
+            const merged = sortedData.map((raw: any) => {
+                const inv = {
+                    ...raw,
+                    id: getInvoiceId(raw),
+                };
                 const key = getInvoiceKey(inv);
                 const override = key ? insuranceOverrides[key] : undefined;
                 if (!override) return inv;
@@ -338,25 +343,17 @@ export default function InsuranceFormsPage() {
         await handleVerifyOnly(inv);
     };
 
-    const requestReject = (inv: Invoice) => {
-        void handleRejectInvoice(inv);
-    };
-
-    const confirmRejectInvoice = async () => {
-        if (!modalInvoice) {
-            closeActionModal();
+    const executeRejectInvoice = async (inv: Invoice, rejectionReason?: string) => {
+        const invoiceId = getInvoiceId(inv);
+        if (!invoiceId) {
+            toast.error('Invoice ID missing. Please refresh and try again.');
             return;
         }
-
-        const inv = modalInvoice;
-        const rejectionReason = rejectReasonDraft.trim() || undefined;
-        closeActionModal();
-
         try {
-            setRejectingInvoiceId(inv.id);
+            setRejectingInvoiceId(invoiceId);
             toast.loading('Rejecting invoice...', { toastId: 'reject-invoice' });
 
-            const res = await adminApi.rejectInvoice(inv.id, rejectionReason);
+            const res = await adminApi.rejectInvoice(invoiceId, rejectionReason);
             if (!res.success) {
                 throw new Error(res.message || 'Failed to reject invoice');
             }
@@ -393,19 +390,17 @@ export default function InsuranceFormsPage() {
         }
     };
 
-    const handleRejectInvoice = async (inv: Invoice) => {
+    const requestReject = (inv: Invoice) => {
         if (rejectingInvoiceId) return;
         if (inv.isRejected) return;
 
-        setRejectReasonDraft(inv.rejectionReason || '');
-        setModalInvoice(inv);
-        setModalType('reject');
-        setModalTitle('Reject invoice?');
-        setModalMessage('Optionally add a reason (admin only).');
-        setModalPrimaryLabel('Reject');
-        setModalSecondaryLabel('Cancel');
-        setModalOpen(true);
-        return;
+        const reasonInput = window.prompt(
+            'Enter rejection reason (optional):',
+            inv.rejectionReason || '',
+        );
+        if (reasonInput === null) return;
+        const rejectionReason = reasonInput.trim() || undefined;
+        void executeRejectInvoice(inv, rejectionReason);
     };
 
     const handleModalPrimary = () => {
