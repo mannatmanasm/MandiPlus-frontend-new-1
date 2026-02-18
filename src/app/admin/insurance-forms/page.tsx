@@ -405,7 +405,7 @@ export default function InsuranceFormsPage() {
 
     const handleModalPrimary = () => {
         if (modalType === 'reject') {
-            void confirmRejectInvoice();
+            closeActionModal();
             return;
         }
 
