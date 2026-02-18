@@ -123,7 +123,6 @@ export default function InsuranceFormsPage() {
     const [modalMessage, setModalMessage] = useState('');
     const [modalPrimaryLabel, setModalPrimaryLabel] = useState('');
     const [modalSecondaryLabel, setModalSecondaryLabel] = useState('Cancel');
-    const [modalPrimaryAction, setModalPrimaryAction] = useState<(() => void) | null>(null);
     const [rejectReasonDraft, setRejectReasonDraft] = useState('');
 
     // --- Cropper & File State ---
@@ -324,7 +323,6 @@ export default function InsuranceFormsPage() {
         setModalMessage('');
         setModalPrimaryLabel('');
         setModalSecondaryLabel('Cancel');
-        setModalPrimaryAction(null);
         setRejectReasonDraft('');
     };
 
@@ -337,7 +335,6 @@ export default function InsuranceFormsPage() {
         setModalMessage('This will mark the invoice as verified.');
         setModalPrimaryLabel('Verify');
         setModalSecondaryLabel('Cancel');
-        setModalPrimaryAction(() => () => confirmVerifyInvoice(inv));
         setModalOpen(true);
     };
 
@@ -368,6 +365,18 @@ export default function InsuranceFormsPage() {
                 autoClose: 2000,
             });
 
+            setInvoices((prev) =>
+                prev.map((item) =>
+                    item.id === inv.id
+                        ? {
+                            ...item,
+                            isRejected: true,
+                            isVerified: false,
+                            rejectionReason: rejectionReason || null,
+                        }
+                        : item,
+                ),
+            );
             await fetchInvoices();
         } catch (error: any) {
             toast.update('reject-invoice', {
@@ -392,6 +401,17 @@ export default function InsuranceFormsPage() {
         if (reasonInput === null) return;
         const rejectionReason = reasonInput.trim() || undefined;
         void executeRejectInvoice(inv, rejectionReason);
+    };
+
+    const handleModalPrimary = () => {
+        if (modalType === 'reject') {
+            void confirmRejectInvoice();
+            return;
+        }
+
+        if (modalType === 'verify' && modalInvoice) {
+            void confirmVerifyInvoice(modalInvoice);
+        }
     };
 
     const handleVerifyOnly = async (inv: Invoice) => {
@@ -762,7 +782,7 @@ export default function InsuranceFormsPage() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => modalPrimaryAction?.()}
+                                onClick={handleModalPrimary}
                                 className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${
                                     modalType === 'reject'
                                         ? 'bg-rose-600 hover:bg-rose-700'
