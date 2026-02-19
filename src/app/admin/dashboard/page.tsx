@@ -602,7 +602,7 @@ export default function AnalyticsDashboardPage() {
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div className="mb-5">
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">MandiPlus Analytics Dashboard</h1>
-                    <p className="mt-1 text-sm text-slate-500">Enterprise-grade analytics for mandi operations, claims, invoices and commissions.</p>
+                    <p className="mt-1 text-sm text-slate-500">     </p>
                 </div>
                 {error ? (
                     <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -637,7 +637,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
 
                 <div className="mt-6">
-                    <h2 className="mb-3 text-xl font-semibold text-slate-900">KPI Summary</h2>
+                    <h2 className="mb-3 text-xl font-semibold text-slate-900">Overall Summary</h2>
                     {loading ? (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -738,10 +738,10 @@ export default function AnalyticsDashboardPage() {
                     </div>
                 </div>
 
-                <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <ChartCard title="Agent Commission Performance" subtitle="Commission efficiency by agent">
-                        <div className="max-h-72 overflow-auto">
-                            <table className="min-w-full text-left text-sm">
+                        <div className="max-h-72 overflow-y-auto overflow-x-hidden">
+                            <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                     <tr>
                                         <th className="px-3 py-2">Agent</th>
@@ -763,8 +763,8 @@ export default function AnalyticsDashboardPage() {
                     </ChartCard>
 
                     <ChartCard title="Top Buyers" subtitle="High value buyers">
-                        <div className="max-h-72 overflow-auto">
-                            <table className="min-w-full text-left text-sm">
+                        <div className="max-h-72 overflow-y-auto overflow-x-hidden">
+                            <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                     <tr>
                                         <th className="px-3 py-2">Buyer</th>
@@ -788,7 +788,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
 
                 <div className="mt-8">
-                    <h2 className="mb-3 text-xl font-semibold text-slate-900">AI Smart Insights</h2>
+                    <h2 className="mb-3 text-xl font-semibold text-slate-900">Smart Insights</h2>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                         {[
                             { label: 'Top Supplier by Premium', value: insights.topSupplierByRevenue },
