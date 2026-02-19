@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -191,10 +190,10 @@ function DonutChartCard({ title, data, valueFormatter }: { title: string; data: 
                                 contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 10 }}
                                 labelStyle={{ color: '#0f172a', fontWeight: 600 }}
                                 itemStyle={{ color: '#0f172a' }}
-                                formatter={(raw: number | string, name: string) => {
+                                formatter={(raw: number | string | undefined, name: string | number | undefined) => {
                                     const value = Number(raw) || 0;
                                     const pct = total ? (value / total) * 100 : 0;
-                                    return [`${valueFormatter(value)} (${pct.toFixed(1)}%)`, name];
+                                    return [`${valueFormatter(value)} (${pct.toFixed(1)}%)`, String(name || '')];
                                 }}
                                 />
                             </PieChart>
@@ -680,7 +679,7 @@ export default function AnalyticsDashboardPage() {
                                             contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 10 }}
                                             labelStyle={{ color: '#0f172a', fontWeight: 600 }}
                                             itemStyle={{ color: '#0f172a' }}
-                                            formatter={(v: number | string) => formatCurrency(Number(v) || 0)}
+                                            formatter={(v: number | string | undefined) => formatCurrency(Number(v) || 0)}
                                         />
                                         <Line type="monotone" dataKey="sales" stroke="#1d4ed8" strokeWidth={2.5} dot={{ r: 3 }} />
                                     </LineChart>
@@ -699,7 +698,7 @@ export default function AnalyticsDashboardPage() {
                                             contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 10 }}
                                             labelStyle={{ color: '#0f172a', fontWeight: 600 }}
                                             itemStyle={{ color: '#0f172a' }}
-                                            formatter={(v: number | string) => formatCurrency(Number(v) || 0)}
+                                            formatter={(v: number | string | undefined) => formatCurrency(Number(v) || 0)}
                                         />
                                         <Bar dataKey="sales" radius={[8, 8, 0, 0]} fill="#0f766e" />
                                     </BarChart>
@@ -718,7 +717,7 @@ export default function AnalyticsDashboardPage() {
                                             contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 10 }}
                                             labelStyle={{ color: '#0f172a', fontWeight: 600 }}
                                             itemStyle={{ color: '#0f172a' }}
-                                            formatter={(v: number | string) => formatCurrency(Number(v) || 0)}
+                                            formatter={(v: number | string | undefined) => formatCurrency(Number(v) || 0)}
                                         />
                                         <Bar dataKey="revenue" radius={[0, 8, 8, 0]} fill="#b45309" />
                                     </BarChart>
