@@ -191,12 +191,12 @@ function DonutChartCard({ title, data, valueFormatter }: { title: string; data: 
                                 contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 10 }}
                                 labelStyle={{ color: '#0f172a', fontWeight: 600 }}
                                 itemStyle={{ color: '#0f172a' }}
-                                formatter={(raw: number | string, name: string) => {
+                                formatter={(raw: number | string | undefined, name: string) => {
                                     const value = Number(raw) || 0;
                                     const pct = total ? (value / total) * 100 : 0;
                                     return [`${valueFormatter(value)} (${pct.toFixed(1)}%)`, name];
                                 }}
-                                />
+                            />
                             </PieChart>
                         </ResponsiveContainer>
                     )}
