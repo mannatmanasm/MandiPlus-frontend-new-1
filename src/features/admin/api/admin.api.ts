@@ -106,6 +106,32 @@ export interface AdminAgentCommissionSummaryRow {
   commissionId?: string;
 }
 
+export interface InsurancePaymentRow {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  buyer: string;
+  insuredPerson: string;
+  supplier?: string;
+  premiumAmount: number;
+  paymentAmount: number;
+  balance: number;
+  paymentStatus: string;
+  isPaymentRequired: boolean;
+  paymentCompletedAt?: string | null;
+  remarks?: string | null;
+  updatedAt: string;
+}
+
+export interface UpdateInsurancePaymentPayload {
+  premiumAmount?: number;
+  paymentAmount?: number;
+  paymentStatus?: string;
+  isPaymentRequired?: boolean;
+  paymentCompletedAt?: string | null;
+  remarks?: string | null;
+}
+
 // --- ✅ NEW: Claim Request Interfaces ---
 
 export enum ClaimStatus {
@@ -113,9 +139,9 @@ export enum ClaimStatus {
   INPROGRESS = "inprogress",
   SURVEYOR_ASSIGNED = "surveyor_assigned",
   COMPLETED = "completed",
-  APPROVED = "APPROVED",
-  REJECTED = "REJECTED",
-  SETTLED = "SETTLED",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  SETTLED = "settled",
 }
 
 export interface ClaimRequest {
@@ -156,7 +182,7 @@ export interface UpdateClaimStatusDto {
 // ----------------------------------------
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 class AdminApi {
   private client: AxiosInstance;
@@ -654,6 +680,62 @@ class AdminApi {
     }
   };
 
+  public getInsurancePayments = async (filters?: {
+    fromDate?: string;
+    toDate?: string;
+    paymentStatus?: string;
+  }): Promise<ApiResponse<InsurancePaymentRow[]>> => {
+    try {
+      const response = await this.client.get("/insurance-payments/admin", {
+        params: filters,
+      });
+
+      const payload = response.data;
+      if (Array.isArray(payload)) {
+        return { success: true, data: payload as InsurancePaymentRow[] };
+      }
+      if (Array.isArray(payload?.data)) {
+        return { success: true, data: payload.data as InsurancePaymentRow[] };
+      }
+      return payload;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to fetch insurance payments",
+        error: error.message,
+      };
+    }
+  };
+
+  public updateInsurancePayment = async (
+    invoiceId: string,
+    payload: UpdateInsurancePaymentPayload,
+  ): Promise<ApiResponse<InsurancePaymentRow>> => {
+    try {
+      const response = await this.client.patch(
+        `/insurance-payments/admin/${invoiceId}`,
+        payload,
+      );
+
+      const data = response.data;
+      if (data && typeof data === "object" && "success" in data) {
+        return data as ApiResponse<InsurancePaymentRow>;
+      }
+      return {
+        success: true,
+        data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to update insurance payment",
+        error: error.message,
+      };
+    }
+  };
+
   // ============================================================
   // ✅ AGENT COMMISSIONS (ADMIN)
   // ============================================================
@@ -874,6 +956,36 @@ class AdminApi {
       return {
         success: false,
         message: error.response?.data?.message || "Failed to upload media",
+        error: error.message,
+      };
+    }
+  };
+
+  public removeClaimMedia = async (
+    claimId: string,
+    mediaType:
+      | "fir"
+      | "gpsPictures"
+      | "accidentPic"
+      | "inspectionReport"
+      | "weighmentSlip"
+      | "lorryReceipt"
+      | "insurancePolicy",
+  ): Promise<ApiResponse<ClaimRequest>> => {
+    try {
+      const response = await this.client.patch<ClaimRequest>(
+        `/claim-requests/${claimId}/media/${mediaType}/remove`,
+      );
+
+      return {
+        success: true,
+        data: response.data,
+        message: "Media removed successfully",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to remove media",
         error: error.message,
       };
     }
