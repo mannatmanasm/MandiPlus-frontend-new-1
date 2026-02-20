@@ -10,7 +10,8 @@ import {
     XMarkIcon,
     ClipboardDocumentListIcon,
     PencilSquareIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    CreditCardIcon
 } from '@heroicons/react/24/outline';
 import { Bars3Icon } from '@heroicons/react/16/solid';
 import Link from 'next/link';
@@ -24,6 +25,7 @@ const navigation = [
     { name: 'Invoice / Insurance Forms', href: '/admin/insurance-forms', icon: FolderIcon },
     { name: 'Claim Requests', href: '/admin/claims', icon: ClipboardDocumentListIcon },
     { name: 'Agent Commissions', href: '/admin/agent-commissions', icon: BanknotesIcon },
+    { name: 'Insurance Payments', href: '/admin/insurance-payments', icon: CreditCardIcon },
     {
     name: 'Edit Insurance PDF',
     href: '/admin/pdf-editor',
