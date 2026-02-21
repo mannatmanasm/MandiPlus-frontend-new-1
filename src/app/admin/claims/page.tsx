@@ -32,6 +32,7 @@ export default function ClaimsPage() {
     const [showDamageModal, setShowDamageModal] = useState(false);
     const [selectedClaim, setSelectedClaim] = useState<ClaimRequest | null>(null);
     const [uploadingMedia, setUploadingMedia] = useState<string | null>(null); // mediaType being uploaded
+    const [removingMedia, setRemovingMedia] = useState<string | null>(null); // mediaType being removed
 
     // Form States
     const [updateForm, setUpdateForm] = useState<UpdateClaimStatusDto>({
@@ -76,8 +77,11 @@ export default function ClaimsPage() {
         if (!selectedClaim) return;
 
         try {
-            await adminApi.updateClaimStatus(selectedClaim.id, updateForm);
-            alert('Status updated successfully');
+            const response = await adminApi.updateClaimStatus(selectedClaim.id, updateForm);
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to update status');
+            }
+            alert(response.message || 'Status updated successfully');
             setShowUpdateModal(false);
             fetchClaims();
         } catch (error) {
@@ -88,8 +92,11 @@ export default function ClaimsPage() {
     const handleCreateClaim = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await adminApi.createClaimForUser(newClaimTruck);
-            alert('Claim created successfully');
+            const response = await adminApi.createClaimForUser(newClaimTruck.trim());
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to create claim');
+            }
+            alert(response.message || 'Claim created successfully');
             setShowCreateModal(false);
             setNewClaimTruck('');
             fetchClaims();
@@ -120,6 +127,10 @@ export default function ClaimsPage() {
             alert('Inspection report must be a PDF file');
             return;
         }
+        if (mediaType === 'accidentPic' && file.type.toLowerCase().startsWith('video/')) {
+            alert('Video files are not allowed for accident picture');
+            return;
+        }
         setUploadingMedia(mediaType);
         try {
             const response = await adminApi.uploadClaimMedia(claimId, mediaType, file);
@@ -143,6 +154,30 @@ export default function ClaimsPage() {
         }
     };
 
+    const handleMediaRemove = async (claimId: string, mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy') => {
+        setRemovingMedia(mediaType);
+        try {
+            const response = await adminApi.removeClaimMedia(claimId, mediaType);
+            if (!response.success) {
+                alert(response.message || 'Failed to remove media');
+                return;
+            }
+
+            alert('Media removed successfully');
+            fetchClaims();
+            if (selectedClaim && selectedClaim.id === claimId) {
+                const updatedResponse = await adminApi.getClaimById(claimId);
+                if (updatedResponse.success && updatedResponse.data) {
+                    setSelectedClaim(updatedResponse.data);
+                }
+            }
+        } catch (error) {
+            alert('Failed to remove media');
+        } finally {
+            setRemovingMedia(null);
+        }
+    };
+
     const openDamageFormModal = (claim: ClaimRequest) => {
         setSelectedClaim(claim);
         setShowDamageModal(true);
@@ -152,7 +187,11 @@ export default function ClaimsPage() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'completed':
+            case 'approved':
+            case 'settled':
                 return adminChipClasses.success;
+            case 'rejected':
+                return adminChipClasses.info;
             case 'inprogress':
                 return adminChipClasses.pending;
             case 'surveyor_assigned':
@@ -387,22 +426,25 @@ export default function ClaimsPage() {
                                     </div>
 
                                     {/* Claim Info */}
-                                    <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                    <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
                                         <div className="grid grid-cols-2 gap-4 text-sm">
                                             <div>
-                                                <span className="font-medium">Claim ID:</span> {selectedClaim.id.slice(0, 8)}...
+                                                <span className="font-medium text-slate-600">Claim ID:</span>
+                                                <span className="ml-2 font-semibold text-slate-900">{selectedClaim.id.slice(0, 8)}...</span>
                                             </div>
                                             <div>
-                                                <span className="font-medium">Status:</span> 
-                                                <span className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold ${getStatusColor(selectedClaim.status)}`}>
+                                                <span className="font-medium text-slate-600">Status:</span>
+                                                <span className={`ml-2 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getStatusColor(selectedClaim.status)}`}>
                                                     {selectedClaim.status.replace('_', ' ')}
                                                 </span>
                                             </div>
                                             <div>
-                                                <span className="font-medium">Truck:</span> {selectedClaim.invoice?.vehicleNumber || 'N/A'}
+                                                <span className="font-medium text-slate-600">Truck:</span>
+                                                <span className="ml-2 font-semibold text-slate-900">{selectedClaim.invoice?.vehicleNumber || 'N/A'}</span>
                                             </div>
                                             <div>
-                                                <span className="font-medium">Invoice:</span> {selectedClaim.invoice?.invoiceNumber || 'N/A'}
+                                                <span className="font-medium text-slate-600">Invoice:</span>
+                                                <span className="ml-2 font-semibold text-slate-900">{selectedClaim.invoice?.invoiceNumber || 'N/A'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -418,8 +460,10 @@ export default function ClaimsPage() {
                                             existingUrl={selectedClaim.accidentPic}
                                             claimId={selectedClaim.id}
                                             onUpload={handleMediaUpload}
+                                            onRemove={handleMediaRemove}
                                             uploading={uploadingMedia === 'accidentPic'}
-                                            accept=".jpg,.jpeg,.png,.gif"
+                                            removing={removingMedia === 'accidentPic'}
+                                            accept="*/*"
                                         />
 
                                         {/* 2. Damage Certificate */}
@@ -470,7 +514,9 @@ export default function ClaimsPage() {
                                             existingUrl={selectedClaim.fir}
                                             claimId={selectedClaim.id}
                                             onUpload={handleMediaUpload}
+                                            onRemove={handleMediaRemove}
                                             uploading={uploadingMedia === 'fir'}
+                                            removing={removingMedia === 'fir'}
                                             accept=".pdf,.doc,.docx"
                                         />
 
@@ -481,7 +527,9 @@ export default function ClaimsPage() {
                                             existingUrl={selectedClaim.insurancePolicy}
                                             claimId={selectedClaim.id}
                                             onUpload={handleMediaUpload}
+                                            onRemove={handleMediaRemove}
                                             uploading={uploadingMedia === 'insurancePolicy'}
+                                            removing={removingMedia === 'insurancePolicy'}
                                             accept=".pdf,.jpg,.jpeg,.png"
                                         />
 
@@ -492,7 +540,9 @@ export default function ClaimsPage() {
                                             existingUrl={selectedClaim.lorryReceipt}
                                             claimId={selectedClaim.id}
                                             onUpload={handleMediaUpload}
+                                            onRemove={handleMediaRemove}
                                             uploading={uploadingMedia === 'lorryReceipt'}
+                                            removing={removingMedia === 'lorryReceipt'}
                                             accept=".pdf,.jpg,.jpeg,.png"
                                         />
 
@@ -503,7 +553,9 @@ export default function ClaimsPage() {
                                             existingUrl={selectedClaim.inspectionReport}
                                             claimId={selectedClaim.id}
                                             onUpload={handleMediaUpload}
+                                            onRemove={handleMediaRemove}
                                             uploading={uploadingMedia === 'inspectionReport'}
+                                            removing={removingMedia === 'inspectionReport'}
                                             accept=".pdf"
                                         />
                                     </div>
@@ -595,7 +647,9 @@ function MediaUploadSection({
     existingUrl,
     claimId,
     onUpload,
+    onRemove,
     uploading,
+    removing,
     accept
 }: {
     label: string;
@@ -603,7 +657,9 @@ function MediaUploadSection({
     existingUrl?: string | null;
     claimId: string;
     onUpload: (claimId: string, mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy', file: File) => void;
+    onRemove: (claimId: string, mediaType: 'fir' | 'accidentPic' | 'inspectionReport' | 'lorryReceipt' | 'insurancePolicy') => void;
     uploading: boolean;
+    removing: boolean;
     accept: string;
 }) {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -621,16 +677,26 @@ function MediaUploadSection({
 
     return (
         <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-700">{label}</span>
-                    {existingUrl && <CheckIcon className="w-5 h-5 text-green-600" />}
+                    {existingUrl ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                            <CheckIcon className="w-3.5 h-3.5" />
+                            Uploaded
+                        </span>
+                    ) : (
+                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                            Not uploaded
+                        </span>
+                    )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                     {existingUrl && (
                         <a
                             href={existingUrl}
                             target="_blank"
+                            rel="noreferrer"
                             className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
                             title="View document"
                         >
@@ -652,7 +718,7 @@ function MediaUploadSection({
                             existingUrl
                                 ? 'text-green-600 hover:text-green-800 border border-green-600'
                                 : 'text-blue-600 hover:text-blue-800 border border-blue-600'
-                        } ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        } ${(uploading || removing) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {uploading ? (
                             <>
@@ -662,10 +728,30 @@ function MediaUploadSection({
                         ) : (
                             <>
                                 <CloudArrowUpIcon className="w-4 h-4" />
-                                {existingUrl ? 'Update' : 'Upload'}
+                                {existingUrl ? 'Reupload' : 'Upload'}
                             </>
                         )}
                     </label>
+                    {existingUrl && (
+                        <button
+                            type="button"
+                            onClick={() => onRemove(claimId, mediaType)}
+                            disabled={uploading || removing}
+                            className={`text-sm flex items-center gap-1 px-3 py-1 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 ${(uploading || removing) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {removing ? (
+                                <>
+                                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                    Removing...
+                                </>
+                            ) : (
+                                <>
+                                    <XMarkIcon className="w-4 h-4" />
+                                    Remove
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
